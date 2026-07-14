@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Console Massilia — pilotage de l'activité</title>
+<meta name="description" content="Console interne Massilia Consulting : déploiements, parc client, commercial, facturation.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1F3247">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
+
+<script>
+/* =========================================================
+   Console Massilia — configuration
+   Ces valeurs sont publiques par conception (Google).
+   Ce qui protège la base, ce sont les RÈGLES + l'e-mail autorisé.
+   ========================================================= */
+const CONSOLE_VERSION = "M4 · v1.5 · 14/07";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBpu8hCXnBuoAshpTgJrDYb3oD8r9eWk8A",
+  authDomain: "batisuivi-base.firebaseapp.com",
+  databaseURL: "https://batisuivi-base-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "batisuivi-base",
+  storageBucket: "batisuivi-base.firebasestorage.app",
+  messagingSenderId: "465338398853",
+  appId: "1:465338398853:web:1101cda7ee035e1ef6d1ec"
+};
+
+/* Seul cet e-mail peut entrer. Les règles Firebase disent la même chose,
+   côté serveur : même si on modifie cette ligne, la base refuse. */
+const ADMIN_EMAIL = "massiliaconsulting1@gmail.com";
+
+/* Toutes les données de la console vivent sous cette branche,
+   séparée de "batisuivi" : les deux peuvent cohabiter sans se marcher dessus. */
+const RACINE = "console";
+</script>
+
+<style>
+:root{
+  --beton:#E7E9EB; --beton2:#F5F6F7; --ink:#101418; --ink2:#5C6672; --line:#CBD1D6;
+  --acier:#1F3247; --acier2:#2C4460; --jaune:#F5B301; --vert:#12855C; --rouge:#B23A2E;
+  --r:4px;
+  --dis:'Archivo','Arial Narrow',Helvetica,sans-serif;
+  --bod:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --mon:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--beton);color:var(--ink);font-family:var(--bod);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;padding-bottom:70px}
+button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;font-size:15px}
+.wrap{max-width:1180px;margin:0 auto}
+.mono{font-family:var(--mon)}
+.hide{display:none!important}
+
+/* ---------- écran de connexion ---------- */
+#gate{
+  position:fixed;inset:0;background:var(--acier);color:#fff;z-index:90;
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.gate-c{max-width:400px;width:100%;text-align:center}
+.gate-c .eyebrow{font-family:var(--mon);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#93A6BB;margin-bottom:8px}
+.gate-c h1{font-family:var(--dis);font-weight:800;font-size:34px;text-transform:uppercase;line-height:1.02;letter-spacing:-.02em;margin-bottom:10px}
+.gate-c h1 em{font-style:normal;color:var(--jaune)}
+.gate-c p{color:#B7C4D2;font-size:14px;margin-bottom:22px}
+.gate-c .btn-g{
+  width:100%;background:#fff;color:var(--ink);font-weight:600;padding:13px;border-radius:var(--r);
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.gate-c .btn-g:hover{background:var(--jaune)}
+.gate-err{margin-top:14px;color:#FFC9C2;font-size:13px;min-height:20px}
+.gate-note{margin-top:22px;font-size:12px;color:#6E829A;font-family:var(--mon)}
+
+/* ---------- bandeau ---------- */
+header{background:var(--acier);color:#fff;border-bottom:5px solid var(--jaune);padding:16px 20px 0}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.top .eyebrow{font-family:var(--mon);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#93A6BB}
+.top .marque{font-family:var(--dis);font-weight:800;font-size:20px;text-transform:uppercase;letter-spacing:-.01em}
+.top .marque em{font-style:normal;color:var(--jaune)}
+.top .sp{flex:1}
+.who{font-size:12px;color:#B7C4D2;font-family:var(--mon);display:flex;align-items:center;gap:8px}
+.who button{color:#93A6BB;text-decoration:underline;font-size:12px}
+.who button:hover{color:var(--jaune)}
+.pastille{width:8px;height:8px;border-radius:50%;background:var(--vert);display:inline-block}
+.pastille.off{background:var(--jaune)}
+
+/* onglets modules */
+nav.mods{display:flex;gap:2px;margin-top:14px;overflow-x:auto}
+nav.mods button{
+  padding:9px 14px;font-size:13px;font-weight:600;color:#93A6BB;white-space:nowrap;
+  border-bottom:3px solid transparent;border-radius:var(--r) var(--r) 0 0;
+}
+nav.mods button:hover{color:#fff;background:#2C4460}
+nav.mods button[aria-current=true]{color:var(--ink);background:var(--beton);border-bottom-color:var(--jaune)}
+nav.mods button .soon{font-family:var(--mon);font-size:9px;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-left:5px}
+
+/* ---------- jauge ---------- */
+.jauge{margin:16px 0 0;padding-bottom:16px}
+.jauge-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:7px;flex-wrap:wrap}
+.jauge-pct{font-family:var(--dis);font-weight:800;font-size:28px;line-height:1;letter-spacing:-.02em}
+.jauge-pct small{font-size:13px;font-weight:600;color:#93A6BB;margin-left:8px;letter-spacing:0}
+.jauge-time{font-family:var(--mon);font-size:12px;color:#B7C4D2;text-align:right}
+.jauge-time b{color:var(--jaune)}
+.bandes{display:flex;gap:3px;height:14px}
+.bande{flex:1;background:#33465C;position:relative;overflow:hidden;border-radius:1px;cursor:pointer}
+.bande i{position:absolute;inset:0 auto 0 0;width:0%;background:var(--jaune);transition:width .45s cubic-bezier(.2,.7,.2,1)}
+.bande.full i{background:var(--vert)}
+.bande:hover{outline:2px solid var(--jaune);outline-offset:1px}
+.bande-lbl{display:flex;gap:3px;margin-top:5px}
+.bande-lbl span{flex:1;text-align:center;font-family:var(--mon);font-size:10px;color:#6E829A}
+
+/* ---------- corps ---------- */
+main{max-width:1180px;margin:0 auto;padding:24px 20px;display:grid;grid-template-columns:330px 1fr;gap:26px;align-items:start}
+main.plein{grid-template-columns:1fr}
+@media(max-width:900px){main{grid-template-columns:1fr;padding:18px 14px}}
+.panneau{position:sticky;top:16px}
+@media(max-width:900px){.panneau{position:static}}
+
+.card{background:var(--beton2);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.card h2{font-family:var(--dis);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);margin-bottom:12px}
+label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin:10px 0 3px}
+input[type=text],select,textarea{width:100%;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;color:var(--ink)}
+input[type=text]:focus,select:focus,textarea:focus{outline:2px solid var(--acier);border-color:var(--acier)}
+textarea{resize:vertical;min-height:60px}
+.hint{font-size:12px;color:var(--ink2);margin-top:4px}
+.dossier-sel{display:flex;gap:6px;margin-bottom:12px}
+.dossier-sel select{flex:1}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 12px;border-radius:var(--r);font-weight:600;font-size:13px;border:1px solid var(--line);background:#fff;transition:.12s}
+.btn:hover{border-color:var(--acier)}
+.btn:focus-visible{outline:2px solid var(--jaune);outline-offset:2px}
+.btn.plein{background:var(--acier);color:#fff;border-color:var(--acier)}
+.btn.plein:hover{background:var(--acier2)}
+.btn.danger{color:var(--rouge);border-color:#E3BDB8}
+.btn.danger:hover{background:var(--rouge);color:#fff;border-color:var(--rouge)}
+.btn.full{width:100%}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.etat{display:flex;gap:6px;margin-top:4px}
+.etat button{flex:1;padding:7px;border:1px solid var(--line);background:#fff;border-radius:var(--r);font-size:12px;font-weight:600;color:var(--ink2)}
+.etat button[aria-pressed=true]{background:var(--acier);color:#fff;border-color:var(--acier)}
+
+/* ---------- lots ---------- */
+.lot{background:var(--beton2);border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
+.lot-head{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 16px;background:#fff;border-bottom:1px solid var(--line)}
+.lot-head:hover{background:#FBFBFC}
+.lot-num{font-family:var(--dis);font-weight:800;font-size:19px;line-height:1;min-width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:var(--acier);color:#fff;border-radius:var(--r);flex:0 0 auto;transition:.2s}
+.lot.fait .lot-num{background:var(--vert)}
+.lot.encours .lot-num{background:var(--jaune);color:var(--ink)}
+.lot-t{flex:1;min-width:0}
+.lot-t h3{font-family:var(--dis);font-weight:700;font-size:16px;letter-spacing:-.01em}
+.lot-t p{font-size:12.5px;color:var(--ink2)}
+.lot-meta{text-align:right;flex:0 0 auto;font-family:var(--mon);font-size:11px;color:var(--ink2);line-height:1.5}
+.lot-meta b{display:block;color:var(--ink);font-size:13px}
+.chev{flex:0 0 auto;color:var(--ink2);transition:transform .2s}
+.lot.ouvert .chev{transform:rotate(90deg)}
+.lot-body{padding:6px 16px 16px;display:none}
+.lot.ouvert .lot-body{display:block}
+
+.etape{display:flex;gap:12px;padding:13px 0;border-bottom:1px dashed var(--line)}
+.etape:last-child{border-bottom:none}
+.box{flex:0 0 auto;width:26px;height:26px;border:2px solid var(--ink2);border-radius:3px;background:#fff;position:relative;margin-top:1px;transition:.12s}
+.box:hover{border-color:var(--acier)}
+.box:focus-visible{outline:2px solid var(--jaune);outline-offset:2px}
+.box[aria-checked=true]{background:var(--vert);border-color:var(--vert)}
+.box[aria-checked=true]::after{content:"";position:absolute;left:7px;top:2px;width:7px;height:13px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(42deg)}
+.etape-c{flex:1;min-width:0}
+.etape-t{font-weight:600;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.etape.done .etape-t{color:var(--ink2);text-decoration:line-through;text-decoration-color:var(--line)}
+.tag{font-family:var(--mon);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:2px;font-weight:600;white-space:nowrap}
+.tag.crit{background:#FBE3E0;color:var(--rouge)}
+.tag.opt{background:#E4E8EB;color:var(--ink2)}
+.etape-d{font-size:13.5px;color:var(--ink2);margin-top:3px}
+.etape-d b{color:var(--ink)}
+.piege{margin-top:7px;padding:8px 10px;background:#FFF6E0;border-left:3px solid var(--jaune);font-size:13px;border-radius:0 var(--r) var(--r) 0}
+.piege b{font-family:var(--dis);text-transform:uppercase;font-size:11px;letter-spacing:.08em}
+
+.code{margin-top:8px;background:var(--acier);border-radius:var(--r);position:relative}
+.code pre{font-family:var(--mon);font-size:12.5px;color:#DCE6F0;padding:11px 46px 11px 12px;overflow-x:auto;white-space:pre;line-height:1.6}
+.code .cp{position:absolute;top:6px;right:6px;background:#33465C;color:#DCE6F0;border-radius:3px;padding:4px 8px;font-size:11px;font-weight:600;font-family:var(--mon)}
+.code .cp:hover{background:var(--jaune);color:var(--ink)}
+.code .cp.ok{background:var(--vert);color:#fff}
+
+.pv{background:var(--acier);color:#fff;border-radius:var(--r);padding:20px;border:1px solid var(--acier)}
+.pv.pret{border:2px solid var(--jaune)}
+.pv h2{font-family:var(--dis);font-weight:800;font-size:18px;text-transform:uppercase;color:#fff;margin-bottom:8px}
+.pv p{font-size:13.5px;color:#B7C4D2}
+.pv .rest{margin-top:12px;font-size:13px}
+.pv .rest li{margin-left:18px;color:#DCE6F0}
+.pv .btn{margin-top:14px}
+.sceau{display:inline-block;margin-top:12px;border:2px solid var(--jaune);color:var(--jaune);font-family:var(--dis);font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:8px 14px;transform:rotate(-1.5deg);font-size:14px}
+
+/* ---------- module à venir ---------- */
+.soon-c{background:var(--beton2);border:1px dashed var(--line);border-radius:var(--r);padding:30px;text-align:center}
+.soon-c h2{font-family:var(--dis);font-weight:800;font-size:22px;text-transform:uppercase;margin-bottom:8px}
+.soon-c p{color:var(--ink2);max-width:56ch;margin:0 auto 16px}
+.soon-l{text-align:left;max-width:520px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px 18px}
+.soon-l li{margin-left:18px;font-size:14px;padding:3px 0}
+.soon-tag{display:inline-block;background:var(--jaune);color:var(--ink);font-family:var(--mon);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:2px;margin-bottom:12px}
+
+/* ---------- M1 parc client ---------- */
+.compteurs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.cpt{background:var(--beton2);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.cpt.alerte{border-color:var(--jaune);background:#FFF6E0}
+.cpt.rouge{border-color:#E3BDB8;background:#FBE3E0}
+.cpt .v{font-family:var(--dis);font-weight:800;font-size:26px;line-height:1.1;letter-spacing:-.02em}
+.cpt .l{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin-top:2px}
+.cpt .s{font-size:12px;color:var(--ink2);margin-top:3px}
+.barre-out{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.barre-out .ref{flex:1;min-width:220px;display:flex;gap:8px;align-items:center;background:var(--beton2);border:1px solid var(--line);border-radius:var(--r);padding:8px 12px}
+.barre-out .ref label{margin:0;white-space:nowrap}
+.barre-out .ref input{width:auto;flex:1}
+
+.cli{background:var(--beton2);border:1px solid var(--line);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.cli.ouvert{border-color:var(--acier)}
+.cli-head{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;background:#fff}
+.cli-head:hover{background:#FBFBFC}
+.cli-ini{flex:0 0 auto;width:38px;height:38px;border-radius:var(--r);background:var(--acier);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--dis);font-weight:800;font-size:15px}
+.cli.suspendu .cli-ini{background:var(--jaune);color:var(--ink)}
+.cli.resilie .cli-ini{background:var(--ink2)}
+.cli-t{flex:1;min-width:0}
+.cli-t h3{font-family:var(--dis);font-weight:700;font-size:15.5px;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.cli-t p{font-size:12.5px;color:var(--ink2);font-family:var(--mon)}
+.cli-eur{text-align:right;flex:0 0 auto;font-family:var(--mon);font-size:11px;color:var(--ink2);line-height:1.5}
+.cli-eur b{display:block;font-size:14px;color:var(--ink)}
+.cli-eur b.neg{color:var(--rouge)}
+.cli-body{display:none;padding:4px 14px 14px;border-top:1px solid var(--line)}
+.cli.ouvert .cli-body{display:block}
+.grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 12px}
+.bloc-t{font-family:var(--dis);font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin:14px 0 2px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.bdg{font-family:var(--mon);font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:2px;white-space:nowrap}
+.bdg.ok{background:#DDEDE6;color:var(--vert)}
+.bdg.retard{background:#FFF0CC;color:#9A6E00}
+.bdg.stop{background:#E4E8EB;color:var(--ink2)}
+.bdg.rouge{background:#FBE3E0;color:var(--rouge)}
+.vide{background:var(--beton2);border:1px dashed var(--line);border-radius:var(--r);padding:34px;text-align:center;color:var(--ink2)}
+.vide h3{font-family:var(--dis);font-weight:800;font-size:19px;text-transform:uppercase;color:var(--ink);margin-bottom:6px}
+
+/* ---------- M2 commercial ---------- */
+.board{display:grid;grid-template-columns:repeat(6,minmax(170px,1fr));gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:16px}
+@media(max-width:900px){.board{grid-template-columns:repeat(6,78vw)}}
+.col{background:var(--beton2);border:1px solid var(--line);border-radius:var(--r);padding:8px;min-height:120px}
+.col.signe{border-color:var(--vert);background:#F0F8F5}
+.col.perdu{opacity:.7}
+.col-t{font-family:var(--dis);font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);display:flex;justify-content:space-between;margin-bottom:8px;padding:0 2px}
+.col-t b{color:var(--ink)}
+.pcard{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:9px 10px;margin-bottom:6px;cursor:pointer}
+.pcard:hover{border-color:var(--acier)}
+.pcard.sel{border-color:var(--acier);box-shadow:inset 3px 0 0 var(--jaune)}
+.pcard.chaud{border-left:3px solid var(--rouge)}
+.pcard h4{font-family:var(--dis);font-weight:700;font-size:13.5px;line-height:1.25}
+.pcard p{font-size:11.5px;color:var(--ink2);font-family:var(--mon);margin-top:2px}
+.pcard .act{font-size:11.5px;margin-top:5px;color:var(--ink);border-top:1px dashed var(--line);padding-top:5px}
+.pcard .act.retard{color:var(--rouge);font-weight:600}
+.pmove{display:flex;gap:4px;margin-top:6px}
+.pmove button{flex:1;border:1px solid var(--line);border-radius:2px;padding:2px;font-size:11px;color:var(--ink2);background:#fff}
+.pmove button:hover{background:var(--acier);color:#fff;border-color:var(--acier)}
+.col-vide{font-size:12px;color:var(--ink2);text-align:center;padding:12px 4px;font-style:italic}
+
+.relances{background:#FBE3E0;border:1px solid #E3BDB8;border-left:5px solid var(--rouge);border-radius:var(--r);padding:12px 14px;margin-bottom:14px}
+.relances h3{font-family:var(--dis);font-weight:800;text-transform:uppercase;font-size:12px;letter-spacing:.1em;color:var(--rouge);margin-bottom:8px}
+.rel-l{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed #E3BDB8;font-size:13.5px;align-items:center}
+.rel-l:last-child{border-bottom:none}
+.rel-l b{font-weight:600}
+.rel-l .j{font-family:var(--mon);font-size:11px;color:var(--rouge);white-space:nowrap}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.duo{grid-template-columns:1fr}}
+.calc-out{background:var(--acier);color:#fff;border-radius:var(--r);padding:12px 14px;margin-top:12px}
+.calc-l{display:flex;justify-content:space-between;padding:4px 0;font-size:13.5px;border-bottom:1px dashed #33465C}
+.calc-l:last-child{border-bottom:none}
+.calc-l span{color:#B7C4D2}
+.calc-l b{font-family:var(--mon)}
+.calc-l b.vert{color:#6EE7B7}
+.calc-l b.rouge{color:#FFC9C2}
+.calc-l.gros{padding-top:8px}
+.calc-l.gros b{font-family:var(--dis);font-size:19px}
+
+.obj{border-bottom:1px solid var(--line);padding:10px 0}
+.obj:last-child{border-bottom:none}
+.obj-q{font-weight:600;display:flex;gap:8px;align-items:baseline}
+.obj-q::before{content:"«";color:var(--jaune);font-family:var(--dis);font-weight:800;font-size:18px}
+.obj-r{font-size:13.5px;color:var(--ink2);margin-top:4px;padding-left:14px;border-left:2px solid var(--line)}
+.script li{margin-left:18px;font-size:13.5px;padding:3px 0}
+.script li b{font-family:var(--mon);font-size:12px;color:var(--acier)}
+
+/* ---------- M3 argent ---------- */
+.tva{background:var(--acier);color:#fff;border-radius:var(--r);padding:16px 18px;margin-bottom:16px}
+.tva-t{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.tva-t h3{font-family:var(--dis);font-weight:800;text-transform:uppercase;font-size:13px;letter-spacing:.1em;color:#93A6BB}
+.tva-t .g{font-family:var(--dis);font-weight:800;font-size:28px;letter-spacing:-.02em}
+.tva-t .g small{font-size:13px;color:#93A6BB;font-weight:600;margin-left:6px}
+.tva-bar{height:22px;background:#33465C;border-radius:2px;position:relative;overflow:hidden}
+.tva-bar i{position:absolute;inset:0 auto 0 0;background:var(--vert);transition:width .5s cubic-bezier(.2,.7,.2,1)}
+.tva-bar i.chaud{background:var(--jaune)}
+.tva-bar i.rouge{background:var(--rouge)}
+.tva-mk{position:absolute;top:0;bottom:0;width:2px;background:#fff;opacity:.85}
+.tva-mk span{position:absolute;top:24px;left:-30px;width:64px;text-align:center;font-family:var(--mon);font-size:10px;color:#B7C4D2}
+.tva-l{margin-top:26px;font-size:13px;color:#B7C4D2}
+.tva-l b{color:#fff}
+
+.ligne{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:var(--r);margin-bottom:6px;flex-wrap:wrap}
+.ligne.impaye{border-color:#E3BDB8;background:#FDF3F2}
+.ligne.paye{opacity:.72}
+.ligne .num{font-family:var(--mon);font-size:11.5px;color:var(--ink2);min-width:110px}
+.ligne .qui{flex:1;min-width:130px;font-weight:600}
+.ligne .qui small{display:block;font-weight:400;font-size:11.5px;color:var(--ink2);font-family:var(--mon)}
+.ligne .mt{font-family:var(--mon);font-weight:600;min-width:80px;text-align:right}
+.ligne .act{display:flex;gap:6px}
+.ligne .act .btn{padding:5px 9px;font-size:12px}
+.filtres{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.filtres button{padding:6px 11px;border:1px solid var(--line);background:#fff;border-radius:var(--r);font-size:12.5px;font-weight:600;color:var(--ink2)}
+.filtres button[aria-pressed=true]{background:var(--acier);color:#fff;border-color:var(--acier)}
+
+/* feuille (facture / relances) */
+#sheet{position:fixed;inset:0;background:rgba(16,20,24,.55);display:none;align-items:flex-start;justify-content:center;padding:24px 16px;z-index:88;overflow-y:auto}
+#sheet.on{display:flex}
+.sheet-c{background:#fff;border-radius:var(--r);max-width:720px;width:100%;padding:30px 34px;box-shadow:0 20px 60px rgba(16,20,24,.35)}
+.sheet-bar{display:flex;gap:8px;justify-content:flex-end;margin-bottom:16px}
+.fac-h{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid var(--acier);padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap}
+.fac-h h1{font-family:var(--dis);font-weight:800;font-size:26px;text-transform:uppercase;letter-spacing:-.01em}
+.fac-h .em{font-size:12.5px;color:var(--ink2);line-height:1.5;text-align:right}
+.fac-m{display:flex;justify-content:space-between;gap:20px;margin-bottom:20px;flex-wrap:wrap;font-size:13.5px}
+.fac-m .bl b{display:block;font-family:var(--dis);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+table.fac{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:14px}
+table.fac th{text-align:left;font-family:var(--dis);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);border-bottom:1px solid var(--line);padding:7px 0}
+table.fac td{padding:10px 0;border-bottom:1px solid var(--line)}
+table.fac td.r,table.fac th.r{text-align:right}
+.fac-tot{display:flex;justify-content:flex-end;gap:24px;font-family:var(--dis);font-weight:800;font-size:20px;padding:6px 0 14px}
+.fac-men{font-size:11.5px;color:var(--ink2);line-height:1.65;border-top:1px solid var(--line);padding-top:12px}
+.fac-men b{color:var(--ink)}
+.rel-b{border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px}
+.rel-b h4{font-family:var(--dis);font-weight:700;font-size:12px;letter-spacing:.09em;text-transform:uppercase;padding:9px 12px;background:var(--beton2);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.rel-b pre{white-space:pre-wrap;font-family:var(--bod);font-size:13.5px;padding:12px;line-height:1.6}
+
+body.impr > *:not(#sheet){display:none!important}
+body.impr #sheet{position:static;background:#fff;padding:0;display:block}
+body.impr .sheet-c{box-shadow:none;max-width:none;padding:0}
+body.impr .sheet-bar{display:none}
+
+.avert{background:#FFF6E0;border:1px solid #E8CE84;border-left:5px solid var(--jaune);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;font-size:13.5px}
+.avert b{font-family:var(--dis);text-transform:uppercase;font-size:11.5px;letter-spacing:.08em;display:block;margin-bottom:3px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--r);font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.22s;z-index:80;box-shadow:0 8px 24px rgba(16,20,24,.25)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.modal{position:fixed;inset:0;background:rgba(16,20,24,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:85}
+.modal.on{display:flex}
+.modal-c{background:var(--beton2);border-radius:var(--r);max-width:440px;width:100%;padding:22px;border-top:5px solid var(--rouge)}
+.modal-c h3{font-family:var(--dis);font-weight:800;text-transform:uppercase;font-size:17px;margin-bottom:8px}
+.modal-c p{font-size:14px;color:var(--ink2);margin-bottom:14px}
+footer{max-width:1180px;margin:10px auto 0;padding:18px 20px 0;border-top:1px solid var(--line);font-size:12px;color:var(--ink2);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media print{header,nav.mods,.panneau .btn,.btn-row,.dossier-sel,.chev,footer{display:none!important}.lot-body{display:block!important}main{display:block}body{background:#fff}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ================= CONNEXION ================= -->
+<div id="gate">
+  <div class="gate-c">
+    <p class="eyebrow">Massilia Consulting</p>
+    <h1>Console <em>de pilotage</em></h1>
+    <p>Accès réservé. Connecte-toi avec le compte Google de Massilia.</p>
+    <button class="btn-g" id="b-google">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45 24c0-1.6-.1-2.7-.4-4H24v7.5h12c-.2 2-1.5 5-4.4 7l6.7 5.2C42.2 36.2 45 30.6 45 24z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.7-5.2c-1.8 1.3-4.3 2.2-7.8 2.2-6 0-11-4-12.8-9.5l-7 5.4C7.8 41.1 15.3 46 24 46z"/><path fill="#FBBC05" d="M11.2 28.2c-.5-1.4-.7-2.8-.7-4.2s.3-2.9.7-4.2l-7-5.4C2.8 17.3 2 20.5 2 24s.8 6.7 2.2 9.6l7-5.4z"/><path fill="#EA4335" d="M24 10.2c3.4 0 5.7 1.5 7 2.7l5.9-5.8C33.3 3.7 29.9 2 24 2 15.3 2 7.8 6.9 4.2 14.4l7 5.4C13 14.2 18 10.2 24 10.2z"/></svg>
+      Se connecter avec Google
+    </button>
+    <div class="gate-err" id="gate-err"></div>
+    <p class="gate-note" id="gate-note">Base fermée · un seul compte autorisé</p>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hide">
+<header>
+  <div class="wrap">
+    <div class="top">
+      <span class="marque">Console <em>Massilia</em></span>
+      <span class="eyebrow" id="h-mod">Chaîne de montage</span>
+      <span class="sp"></span>
+      <span class="who">
+        <span class="pastille" id="p-sync" title="Synchronisé"></span>
+        <span id="h-mail"></span>
+        <button id="b-out">Déconnexion</button>
+      </span>
+    </div>
+
+    <nav class="mods" id="nav"></nav>
+
+    <div class="jauge" id="jauge">
+      <div class="jauge-top">
+        <div><span class="jauge-pct" id="pct">0 %</span><small id="compte">0 / 0 étapes</small></div>
+        <div class="jauge-time">Reste à faire : <b id="reste">—</b><br><span id="dossier-nom">Aucun dossier</span></div>
+      </div>
+      <div class="bandes" id="bandes"></div>
+      <div class="bande-lbl" id="bandes-lbl"></div>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <aside class="panneau" id="panneau">
+    <div class="card">
+      <h2>Dossier en cours</h2>
+      <div class="dossier-sel">
+        <select id="sel-dossier" aria-label="Choisir un dossier"></select>
+        <button class="btn" id="b-new" title="Nouveau dossier">+</button>
+      </div>
+      <label for="f-nom">Artisan / client</label>
+      <input type="text" id="f-nom" data-f="nom" placeholder="Menuiserie Dupont" autocomplete="off">
+      <label for="f-slug">Identifiant court</label>
+      <input type="text" id="f-slug" data-f="slug" class="mono" placeholder="dupont" autocomplete="off">
+      <p class="hint">Sert partout : <span class="mono">batisuivi-dupont</span> et le dépôt GitHub.</p>
+      <label for="f-fb">ID du projet Firebase</label>
+      <input type="text" id="f-fb" data-f="fb" class="mono" placeholder="batisuivi-dupont" autocomplete="off">
+      <label for="f-gh">Compte GitHub</label>
+      <input type="text" id="f-gh" data-f="gh" class="mono" placeholder="massiliaconsulting1-pixel" autocomplete="off">
+      <label for="f-url">Adresse de l'app</label>
+      <input type="text" id="f-url" data-f="url" class="mono" placeholder="https://…" autocomplete="off">
+      <label for="f-dom">Nom de domaine</label>
+      <input type="text" id="f-dom" data-f="dom" class="mono" placeholder="app.menuiserie-dupont.fr" autocomplete="off">
+      <label for="f-ver">Version installée</label>
+      <input type="text" id="f-ver" data-f="ver" class="mono" placeholder="v195 · 13/07" autocomplete="off">
+      <label>État</label>
+      <div class="etat" id="etat">
+        <button data-etat="demo">Démo</button>
+        <button data-etat="vendu">Vendu</button>
+        <button data-etat="livre">Livré</button>
+      </div>
+      <label for="f-notes">Notes</label>
+      <textarea id="f-notes" data-f="notes" placeholder="Ce qui reste, ce qu'il a demandé…"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>Repartir à zéro</h2>
+      <button class="btn full plein" id="b-reset">Décocher tout ce dossier</button>
+      <p class="hint">Remet les cases à blanc, garde la fiche.</p>
+      <div class="btn-row">
+        <button class="btn" id="b-dup">Dupliquer</button>
+        <button class="btn" id="b-vide">Nouveau vierge</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="b-export">Sauvegarder</button>
+        <button class="btn" id="b-import">Restaurer</button>
+      </div>
+      <input type="file" id="f-file" accept="application/json,.json" hidden>
+      <button class="btn full danger" id="b-del" style="margin-top:6px">Supprimer ce dossier</button>
+    </div>
+
+    <div class="card">
+      <h2>Poste de travail</h2>
+      <button class="btn full" id="b-once" aria-pressed="false">Mon poste est déjà prêt</button>
+      <p class="hint">Coche d'un coup le lot 0 — à ne faire qu'une fois sur ton ordinateur.</p>
+      <button class="btn full" id="b-print" style="margin-top:8px">Imprimer / PDF</button>
+    </div>
+  </aside>
+
+  <section id="vue"></section>
+</main>
+
+<footer>
+  <span>Console Massilia · <span class="mono" id="foot-ver"></span> — fichier maître BatiSuivi <span class="mono">v195</span></span>
+  <span id="foot-sync">Synchronisé avec batisuivi-base</span>
+</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="sheet"><div class="sheet-c">
+  <div class="sheet-bar">
+    <button class="btn" id="sh-print">Imprimer / PDF</button>
+    <button class="btn" id="sh-close">Fermer</button>
+  </div>
+  <div id="sh-body"></div>
+</div></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true">
+  <div class="modal-c">
+    <h3 id="mo-t">Confirmer</h3>
+    <p id="mo-p"></p>
+    <div class="btn-row">
+      <button class="btn" id="mo-non">Annuler</button>
+      <button class="btn danger" id="mo-oui">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   LES MODULES (les onglets du SaaS)
+   ========================================================= */
+const MODULES = [
+  {k:"deploiement", t:"Chaîne de montage", pret:true},
+  {k:"parc",   t:"Parc client",   pret:true},
+  {k:"commercial", t:"Commercial", pret:true},
+  {k:"argent", t:"Argent", pret:true},
+  {k:"supervision", t:"Supervision", pret:true},
+  {k:"support", t:"Support", soon:"M5", desc:"Les tickets, la base de connaissance, le diagnostic guidé au téléphone.", pts:["Ticket : qui, quoi, quand, temps passé","Les 20 questions que tous posent","« L'IA ne répond plus » → l'arbre de décision","Journal des incidents"]},
+  {k:"documents", t:"Documents", soon:"M6", desc:"Contrats, RGPD, PV de livraison signés, coffre à documents.", pts:["Contrat de service générable","Politique de confidentialité + sous-traitance","PV de livraison en PDF","Kbis, assurance, CGV au même endroit"]},
+  {k:"produit", t:"Produit", soon:"M7", desc:"Changelog, backlog, prompts Claude Code qui marchent.", pts:["Ce qu'apporte chaque version, en clair","Demandes clients : qui a demandé quoi","Backlog priorisé (valeur ÷ effort)","Bibliothèque de prompts"]},
+];
+
+/* =========================================================
+   LE CONTENU DE LA CHAÎNE DE MONTAGE
+   ========================================================= */
+const LOTS = [
+{ n:"0", titre:"Le poste de travail", ssTitre:"À faire une seule fois sur ton ordinateur", etapes:[
+  {id:"0a",min:5,t:"Compte GitHub + compte Google (Firebase)",d:"Les deux sont gratuits. GitHub héberge les apps, Google héberge les bases."},
+  {id:"0b",min:5,t:"Node.js et l'outil Firebase installés",d:"Dans PowerShell, une seule fois.",code:"npm install -g firebase-tools\nfirebase login"},
+  {id:"0c",min:2,t:"Le dossier maître sous la main",d:"Celui qui contient <b>index.html</b>, <b>sw.js</b> et le sous-dossier <b>functions/</b>. C'est le moule : on ne le modifie jamais pour un client en particulier."},
+  {id:"0d",min:3,t:"Les clés IA prêtes",d:"Clé Anthropic + clé Google Gemini. Elles ne vont <b>jamais</b> dans le code : uniquement dans les secrets Firebase (lot 2)."},
+]},
+{ n:"1", titre:"La mémoire du client", ssTitre:"Créer le projet Firebase", etapes:[
+  {id:"1a",crit:1,min:3,t:"Créer le projet Firebase",d:"console.firebase.google.com → Ajouter un projet → <span class='mono'>batisuivi-{SLUG}</span>. Note l'<b>ID exact</b> et reporte-le dans la fiche."},
+  {id:"1b",crit:1,min:2,t:"Plan Blaze + budget",d:"Sans Blaze, <b>les Cloud Functions ne se déploient pas</b>. Dans la foulée : Google Cloud → Facturation → Budgets → alerte à 10 €."},
+  {id:"1c",crit:1,min:2,t:"Realtime Database → europe-west1 → mode verrouillé",d:"Même région que les fonctions, sinon rien ne se parle.",piege:"La région ne se change pas après coup. Erreur ⇒ nouveau projet."},
+  {id:"1d",crit:1,min:1,t:"Authentication → E-mail/mot de passe + Google",d:"C'est la connexion de l'équipe. Le client final n'a jamais de compte."},
+  {id:"1e",crit:1,min:2,t:"Ajouter une app Web et copier la config",d:"Roue crantée → Paramètres → Vos applications → <span class='mono'>&lt;/&gt;</span> → copier le bloc.",piege:"La clé apiKey n'est pas un secret : Google la conçoit pour être visible. Ce qui protège, ce sont les règles (lot 4)."},
+]},
+{ n:"2", titre:"Les secrets", ssTitre:"AVANT les fonctions — sinon échec", etapes:[
+  {id:"2a",crit:1,min:2,t:"Secret ANTHROPIC_API_KEY",d:"Depuis le dossier maître. Il demande la clé, tu la colles, entrée.",code:"firebase functions:secrets:set ANTHROPIC_API_KEY --project {FB}",piege:"LE piège n°1. Sans le secret AVANT, le déploiement des fonctions échoue."},
+  {id:"2b",crit:1,min:1,t:"Secret GEMINI_API_KEY",d:"Pour la projection IA (transformation de photos).",code:"firebase functions:secrets:set GEMINI_API_KEY --project {FB}"},
+  {id:"2c",opt:1,min:2,t:"Secrets facturation électronique",d:"Seulement si tu actives la passerelle BCSolutions pour cet artisan.",code:"firebase functions:secrets:set BCS_CLIENT_ID --project {FB}\nfirebase functions:secrets:set BCS_CLIENT_SECRET --project {FB}"},
+  {id:"2d",min:1,t:"Vérifier les secrets",d:"Tu dois les voir listés avant le lot 3.",code:"firebase functions:secrets:access ANTHROPIC_API_KEY --project {FB}"},
+]},
+{ n:"3", titre:"Le cerveau", ssTitre:"Déployer les Cloud Functions", etapes:[
+  {id:"3a",crit:1,min:1,t:"Pointer le terminal sur le bon projet",d:"Depuis le dossier maître.",code:"firebase use --add"},
+  {id:"3b",crit:1,min:5,t:"Déployer les fonctions",d:"3 à 6 minutes. Attends <span class='mono'>Deploy complete!</span>",code:"firebase deploy --only functions --project {FB}"},
+  {id:"3c",crit:1,min:2,t:"Vérifier les 8 fonctions",d:"Console → Functions, toutes en europe-west1 : <b>accesClient · structurerCompteRendu · assistantBatiSuivi · iaUsage · lireTicket · devisPhoto · projectionIA · passerellePA</b>."},
+  {id:"3d",opt:1,min:3,t:"Si une fonction répond 403 en 0 ms",d:"Rejetée avant d'exécuter son code : ses droits d'appel sont cassés. Remède : supprimer + redéployer.",code:"firebase functions:delete NOM --region europe-west1 --project {FB}\nfirebase deploy --only functions --project {FB}"},
+]},
+{ n:"4", titre:"Le cadenas", ssTitre:"Les règles de sécurité", etapes:[
+  {id:"4a",crit:1,min:2,t:"Coller les règles et publier",d:"Realtime Database → Règles → tout remplacer → <b>Publier</b>. Identique pour chaque client.",code:'{\n  "rules": {\n    "batisuivi": {\n\n      "config": {\n        ".read": true,\n        ".write": "auth != null"\n      },\n\n      "invites": {\n        ".read": "auth != null",\n        ".write": "auth != null",\n        "$code": {\n          ".read": true\n        }\n      },\n\n      "chantiers": {\n        ".read": "auth != null",\n        ".write": "auth != null"\n      },\n\n      "team":       { ".read": "auth != null", ".write": "auth != null" },\n      "vehicules":  { ".read": "auth != null", ".write": "auth != null" },\n      "planning":   { ".read": "auth != null", ".write": "auth != null" },\n      "notesfrais": { ".read": "auth != null", ".write": "auth != null" },\n      "chat":       { ".read": "auth != null", ".write": "auth != null" }\n\n    }\n  }\n}',piege:"Tout ce qui n'est pas listé est fermé par défaut. Ne mets jamais \u00ab .read: true \u00bb ailleurs que sur config."},
+  {id:"4b",crit:1,min:1,t:"Prouver que la base est fermée",d:"Ouvre cette adresse : tu dois lire <b>Permission denied</b>. Si tu vois des données, les règles ne sont pas publiées.",code:"https://{FB}-default-rtdb.europe-west1.firebasedatabase.app/.json"},
+  {id:"4c",min:1,t:"Jamais de connexion anonyme",d:"Ni maintenant, ni « juste pour tester ». L'accès client passe uniquement par <b>accesClient</b>."},
+]},
+{ n:"5", titre:"Brancher l'app", ssTitre:"La seule ligne de code qui change", etapes:[
+  {id:"5a",crit:1,min:1,t:"Copier le fichier maître",d:"Ne travaille jamais dans le maître. Copie <b>index.html</b> et <b>sw.js</b> dans un dossier au nom du client."},
+  {id:"5b",crit:1,min:2,t:"Remplacer le bloc FIREBASE_CONFIG",d:"Vers la ligne 44. Les 7 valeurs du lot 1. C'est <b>la seule</b> modification de code par client.",code:'const FIREBASE_CONFIG = {\n  apiKey: "…",\n  authDomain: "{FB}.firebaseapp.com",\n  databaseURL: "https://{FB}-default-rtdb.europe-west1.firebasedatabase.app",\n  projectId: "{FB}",\n  storageBucket: "{FB}.firebasestorage.app",\n  messagingSenderId: "…",\n  appId: "…"\n};'},
+  {id:"5c",crit:1,min:1,t:"Vérifier qu'aucune trace ne reste",d:"Cette commande ne doit <b>rien</b> afficher.",code:'grep -n "90a71\\|108439166886" index.html'},
+  {id:"5d",min:1,t:"Ne toucher à rien d'autre",d:"Nom, logo, couleurs, TVA : tout se règle dans l'espace dev (lot 8). C'est ce qui te permet de mettre à jour tous les clients avec un seul fichier."},
+]},
+{ n:"6", titre:"Mise en ligne", ssTitre:"GitHub Pages", etapes:[
+  {id:"6a",crit:1,min:2,t:"Créer le dépôt GitHub",d:"New repository → <span class='mono'>batisuivi-{SLUG}</span> → Public → Create."},
+  {id:"6b",crit:1,min:2,t:"Déposer les fichiers",d:"Add file → Upload files → <b>index.html</b> + <b>sw.js</b> → Commit."},
+  {id:"6c",crit:1,min:2,t:"Activer GitHub Pages",d:"Settings → Pages → branche <b>main</b>, dossier <b>/ (root)</b> → Save. 1 à 2 minutes d'attente.",code:"https://{GH}.github.io/batisuivi-{SLUG}/"},
+  {id:"6d",crit:1,min:1,t:"Autoriser ce domaine dans Firebase",d:"Authentication → Settings → <b>Domaines autorisés</b> → ajouter <span class='mono'>{GH}.github.io</span>.",piege:"Oubli classique : sans ça, la connexion Google de l'équipe échoue sans message clair."},
+  {id:"6e",crit:1,min:1,t:"Ouvrir l'adresse : l'app se lance",d:"Écran d'accueil BatiSuivi, pas de page blanche. Reporte l'adresse dans la fiche."},
+]},
+{ n:"7", titre:"Le nom de domaine", ssTitre:"Option — palier Premium", opt:true, etapes:[
+  {id:"7a",opt:1,min:5,t:"Acheter le domaine",d:"OVH, Gandi… 8 à 15 €/an. <b>Au nom du client</b> si c'est le nom de sa société."},
+  {id:"7b",opt:1,min:3,t:"Créer le CNAME",d:"Sous-domaine <span class='mono'>app</span> → vers <span class='mono'>{GH}.github.io</span>.",code:"app    CNAME    {GH}.github.io."},
+  {id:"7c",opt:1,min:2,t:"Déclarer le domaine sur GitHub + HTTPS",d:"Settings → Pages → Custom domain → Save → cocher <b>Enforce HTTPS</b>."},
+  {id:"7d",opt:1,min:1,t:"Autoriser le domaine dans Firebase",d:"Sinon la connexion Google casse sur la nouvelle adresse."},
+  {id:"7e",opt:1,min:5,t:"Propagation, puis retest complet",d:"Connexion équipe + accès client."},
+]},
+{ n:"8", titre:"L'habillage", ssTitre:"Espace dev — zéro ligne de code", etapes:[
+  {id:"8a",crit:1,min:1,t:"Entrer dans l'espace dev",d:"Ton code dev, en bas de l'écran d'accueil. Réservé à ton adresse e-mail."},
+  {id:"8b",crit:1,min:4,t:"Identité de l'artisan",d:"Nom, logo, slogan, couleur, coordonnées, SIREN, TVA, assurance."},
+  {id:"8c",min:3,t:"Réglages métier",d:"Pointage, taux horaire, préfixes et n° de départ, rôles, étapes, modèles de chantier."},
+  {id:"8d",min:1,t:"Appliquer un pack de réglages",d:"Copie les réglages d'un autre client — <b>jamais l'identité</b> (nom, logo, SIREN, IBAN restent vierges)."},
+  {id:"8e",crit:1,min:1,t:"Choisir le palier",d:"Basique ou Premium, dans le panneau dev."},
+]},
+{ n:"9", titre:"La démo du RDV", ssTitre:"Arriver avec une appli vivante", etapes:[
+  {id:"9a",crit:1,min:2,t:"Charger la démo au bon métier",d:"Espace dev → métier de l'artisan → Charger la démo."},
+  {id:"9b",crit:1,min:3,t:"Répéter le parcours client",d:"Navigation privée → code chantier + nom → avancement, photos, signature, message. <b>C'est ton argument n°1</b> : répète-le jusqu'à le faire les yeux fermés."},
+  {id:"9c",min:2,t:"Tester l'IA",d:"Dictée d'un compte-rendu + une question à l'assistant. Rien ne répond ⇒ secret ou fonction (lots 2 et 3)."},
+  {id:"9d",crit:1,min:2,t:"Installer l'app sur ton téléphone",d:"Partager → Ajouter à l'écran d'accueil. Le logo de l'artisan comme une vraie appli.",piege:"iPhone : si tu changes le logo après, supprime l'icône et rajoute-la."},
+  {id:"9e",crit:1,min:1,t:"Lancer le diagnostic",d:"Espace dev → tout au vert. Dernier filet avant le RDV."},
+]},
+{ n:"10", titre:"Après la signature", ssTitre:"Remise à zéro et livraison", etapes:[
+  {id:"10a",crit:1,min:1,t:"Effacer chantiers + équipe",d:"Cette option <b>garde le logo, les couleurs et les réglages</b> : c'est celle qu'il te faut pour livrer.",piege:"« Tout réinitialiser » efface aussi la personnalisation : tu devrais tout refaire."},
+  {id:"10b",crit:1,min:1,t:"Vérifier qu'il ne reste aucune trace",d:"Plus de chantiers, plus de Karim / Lucas / Thomas, compteurs revenus au numéro de départ."},
+  {id:"10c",crit:1,min:1,t:"Te déconnecter",d:"Sinon le patron tombe sur ta session dev."},
+  {id:"10d",crit:1,min:3,t:"Le patron crée son compte devant toi",d:"Le <b>premier compte créé devient patron</b>. Avec son e-mail à lui.",piege:"Si quelqu'un d'autre s'inscrit avant, c'est lui le patron."},
+  {id:"10e",min:3,t:"Codes d'invitation de l'équipe",d:"Un code par salarié, avec son rôle."},
+  {id:"10f",crit:1,min:15,t:"Former le patron (30 min)",d:"Le parcours qui compte : créer un chantier → publier le devis → donner le code → le client signe. Une fois qu'il l'a fait seul, c'est gagné."},
+  {id:"10g",min:2,t:"Remplir la fiche client dans l'espace dev",d:"Prix, date de début, échéance. Ça alimente ton suivi de marge."},
+]},
+{ n:"11", titre:"Le service après-vente", ssTitre:"Dans la semaine qui suit", etapes:[
+  {id:"11a",crit:1,min:2,t:"Registre à jour",d:"Fiche complète : nom, projet Firebase, dépôt, adresse, version. C'est ce registre qui te sauvera aux mises à jour."},
+  {id:"11b",opt:1,min:10,t:"Activer App Check (reCAPTCHA v3)",d:"D'abord en <b>surveillance</b>, puis force."},
+  {id:"11c",min:3,t:"Première sauvegarde de la base",d:"Espace dev → Exporter. Puis une par mois, minimum."},
+  {id:"11d",min:2,t:"Vérifier la conso IA après une semaine",d:"C'est <b>ton</b> coût, pas le sien : il ne doit jamais le voir."},
+  {id:"11e",min:1,t:"Confirmer l'alerte de budget",d:"Google Cloud → Facturation → Budgets."},
+  {id:"11f",crit:1,min:2,t:"Autoriser la console à lire cette base",d:"Google Cloud → projet <span class='mono'>{FB}</span> → IAM → Accorder l'accès → colle le compte de service de la console → rôle <b>Lecteur Firebase Realtime Database</b>. Sans ça, la supervision affiche « lecture refusée » pour ce client.",piege:"Lecture seule : la console ne peut rien écrire chez ton client. Le compte exact est affiché dans l'onglet Supervision."},
+]},
+];
+
+/* =========================================================
+   ÉTAT
+   ========================================================= */
+const CLE_LOCAL = "bs_chaine_montage_v1";   // ancienne clé (migration)
+const CLE_CACHE = "massilia_console_cache";
+const CHAMPS = ["nom","slug","fb","gh","url","dom","ver","notes"];
+
+let DATA = { dossiers:[], actif:null, posteOk:false, clients:[], prospects:[], factures:[], depenses:[], reglages:{} };
+let OUVERT = {};
+let CLI_OUV = null;      // fiche client dépliée
+let MOD = "deploiement";
+let USER = null;
+let LIGNE = false;          // vrai = branché sur Firebase
+let ECRIT = null;           // minuteur d'écriture différée
+let SILENCE = false;        // évite de se réécrire soi-même
+
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const db  = () => firebase.database();
+const ref = () => db().ref(RACINE);
+
+/* ---------- cache local (secours + hors ligne) ---------- */
+function cacheLire(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:JSON.parse(v); }catch(e){ return d; } }
+function cacheEcrire(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+
+/* ---------- écriture (locale + Firebase, différée) ---------- */
+function sauver(immediat){
+  cacheEcrire(CLE_CACHE, DATA);
+  if(!LIGNE) return;
+  sync(false);
+  clearTimeout(ECRIT);
+  const go = ()=>{
+    SILENCE = true;
+    ref().set(DATA)
+      .then(()=>{ sync(true); setTimeout(()=>SILENCE=false, 400); })
+      .catch(e=>{ SILENCE=false; sync(false); toast("Enregistrement refusé : "+(e.message||"vérifie les règles")); });
+  };
+  if(immediat) go(); else ECRIT = setTimeout(go, 600);
+}
+function sync(ok){
+  const p=$("#p-sync");
+  p.classList.toggle("off", !ok);
+  p.title = ok ? "Synchronisé" : "Enregistrement…";
+}
+
+/* ---------- dossiers ---------- */
+function nouveauDossier(base){
+  return Object.assign({
+    id:"d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    nom:"", slug:"", fb:"", gh:"massiliaconsulting1-pixel", url:"", dom:"", ver:"", notes:"",
+    etat:"demo", cases:{}, cree:new Date().toISOString().slice(0,10)
+  }, base||{});
+}
+function normalise(o){
+  o = o || {};
+  return {
+    dossiers: Array.isArray(o.dossiers) ? o.dossiers : [],
+    actif:    o.actif || null,
+    posteOk:  !!o.posteOk,
+    clients:   Array.isArray(o.clients) ? o.clients : [],
+    prospects: Array.isArray(o.prospects) ? o.prospects : [],
+    factures:  Array.isArray(o.factures) ? o.factures : [],
+    depenses:  Array.isArray(o.depenses) ? o.depenses : [],
+    reglages:  (o.reglages && typeof o.reglages==="object") ? o.reglages : {}
+  };
+}
+const actif = () => DATA.dossiers.find(d=>d.id===DATA.actif) || null;
+
+function jetons(txt){
+  const d = actif() || {};
+  const slug = (d.slug||"").trim() || "client";
+  const fb   = (d.fb||"").trim()   || ("batisuivi-"+slug);
+  const gh   = (d.gh||"").trim()   || "ton-compte";
+  return String(txt).replace(/\{SLUG\}/g,slug).replace(/\{FB\}/g,fb).replace(/\{GH\}/g,gh);
+}
+const toutesEtapes = () => LOTS.flatMap(l=>l.etapes);
+const estCoche = id => { const d=actif(); return !!(d && d.cases && d.cases[id]); };
+const critRestantes = () => toutesEtapes().filter(e=>e.crit && !estCoche(e.id));
+const minutesRestantes = () => toutesEtapes().filter(e=>!e.opt && !estCoche(e.id)).reduce((s,e)=>s+(e.min||0),0);
+const dureeLot = l => l.etapes.reduce((s,e)=>s+(e.min||0),0);
+const faitesLot = l => l.etapes.filter(e=>estCoche(e.id)).length;
+
+/* =========================================================
+   M1 — PARC CLIENT : helpers
+   ========================================================= */
+const CHAMPS_CLI = ["nom","metier","patron","tel","email","fb","repo","url","dom","ver",
+                    "palier","abo","miseEnPlace","jourPrel","coutIA","coutInfra",
+                    "livre","sauve","statut","notes"];
+
+function nouveauClient(base){
+  return Object.assign({
+    id:"c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    nom:"", metier:"", patron:"", tel:"", email:"",
+    fb:"", repo:"", url:"", dom:"", ver:"",
+    palier:"basique", abo:0, miseEnPlace:0, jourPrel:5,
+    coutIA:0, coutInfra:1,
+    livre:new Date().toISOString().slice(0,10), sauve:"", statut:"actif", notes:""
+  }, base||{});
+}
+const reglages = () => (DATA.reglages || (DATA.reglages = {}));
+const versionMaitre = () => (reglages().versionMaitre || "v195 · 13/07");
+const nombre = v => { const n = parseFloat(String(v==null?0:v).replace(",",".")); return isNaN(n)?0:n; };
+const eur = v => nombre(v).toLocaleString("fr-FR",{minimumFractionDigits:0,maximumFractionDigits:2})+" €";
+
+/* « v195 · 13/07 » -> 195 */
+function numVersion(s){ const m = String(s||"").match(/v\s*(\d+)/i); return m ? parseInt(m[1],10) : null; }
+function retardVersion(c){
+  const a = numVersion(c.ver), b = numVersion(versionMaitre());
+  if(a===null || b===null) return null;
+  return b - a;                       // >0 = en retard
+}
+function joursDepuis(iso){
+  if(!iso) return null;
+  const t = Date.parse(iso+"T00:00:00");
+  if(isNaN(t)) return null;
+  return Math.floor((Date.now()-t)/86400000);
+}
+const clientsActifs = () => DATA.clients.filter(c=>c.statut==="actif");
+const mrr = () => clientsActifs().reduce((s,c)=>s+nombre(c.abo),0);
+const margeClient = c => nombre(c.abo) - nombre(c.coutIA) - nombre(c.coutInfra);
+const margeTotale = () => clientsActifs().reduce((s,c)=>s+margeClient(c),0);
+const aMettreAJour = () => clientsActifs().filter(c=>{ const r=retardVersion(c); return r!==null && r>0; });
+const sauvegardesEnRetard = () => clientsActifs().filter(c=>{ const j=joursDepuis(c.sauve); return j===null || j>30; });
+
+/* =========================================================
+   AFFICHAGE
+   ========================================================= */
+function renderNav(){
+  $("#nav").innerHTML = MODULES.map(m=>
+    `<button data-mod="${m.k}" aria-current="${m.k===MOD}">${esc(m.t)}${m.soon?`<span class="soon">${m.soon}</span>`:""}</button>`
+  ).join("");
+  const m = MODULES.find(x=>x.k===MOD);
+  $("#h-mod").textContent = m ? m.t : "";
+  const dep = MOD==="deploiement";
+  $("#jauge").classList.toggle("hide", !dep);
+  $("#panneau").classList.toggle("hide", !dep);
+  $("#main").classList.toggle("plein", !dep);
+}
+
+function renderJauge(){
+  const d = actif();
+  const tot = toutesEtapes().length;
+  const fait = d ? toutesEtapes().filter(e=>estCoche(e.id)).length : 0;
+  const pct = tot ? Math.round(fait/tot*100) : 0;
+  $("#pct").textContent = pct+" %";
+  $("#compte").textContent = fait+" / "+tot+" étapes";
+  const m = minutesRestantes();
+  $("#reste").textContent = d ? (m>=60 ? Math.floor(m/60)+" h "+(m%60?(m%60)+" min":"") : m+" min") : "—";
+  $("#dossier-nom").textContent = d ? (d.nom || "Dossier sans nom") : "Aucun dossier";
+  $("#bandes").innerHTML = LOTS.map(l=>{
+    const p = l.etapes.length ? Math.round(faitesLot(l)/l.etapes.length*100) : 0;
+    return `<button class="bande ${p===100?'full':''}" data-go="${l.n}" title="Lot ${l.n} — ${esc(l.titre)} (${p} %)"><i style="width:${p}%"></i></button>`;
+  }).join("");
+  $("#bandes-lbl").innerHTML = LOTS.map(l=>`<span>${l.n}</span>`).join("");
+}
+
+function renderPanneau(){
+  const d = actif();
+  $("#sel-dossier").innerHTML = DATA.dossiers.length
+    ? DATA.dossiers.map(x=>`<option value="${x.id}" ${x.id===DATA.actif?'selected':''}>${esc(x.nom||"Sans nom")} · ${esc(x.etat)}</option>`).join("")
+    : `<option>Aucun dossier</option>`;
+  CHAMPS.forEach(k=>{ const el=$(`[data-f="${k}"]`); if(el && document.activeElement!==el) el.value = d ? (d[k]||"") : ""; });
+  $$("#etat button").forEach(b=>b.setAttribute("aria-pressed", String(!!d && d.etat===b.dataset.etat)));
+  $("#b-once").setAttribute("aria-pressed", String(!!DATA.posteOk));
+  $("#b-once").textContent = DATA.posteOk ? "Poste prêt ✓ (annuler)" : "Mon poste est déjà prêt";
+}
+
+function vueDeploiement(){
+  const d = actif();
+  const rest = d ? critRestantes() : [];
+  const pret = !!d && rest.length===0;
+  return `
+  <div class="avert">
+    <b>Où vivent tes données</b>
+    Tout est enregistré dans <span class="mono">batisuivi-base</span>, sous la branche <span class="mono">console</span> — séparée des données de l'app. Base fermée : seul ton compte y accède. Tu retrouves tes dossiers sur ton téléphone, à jour.
+  </div>
+  ${LOTS.map(l=>{
+    const f=faitesLot(l), n=l.etapes.length;
+    const cls = f===n ? "fait" : (f>0 ? "encours" : "");
+    return `<div class="lot ${cls} ${OUVERT[l.n]?'ouvert':''}" id="lot-${l.n}">
+      <button class="lot-head" data-lot="${l.n}" aria-expanded="${!!OUVERT[l.n]}">
+        <span class="lot-num">${l.n}</span>
+        <span class="lot-t"><h3>${esc(l.titre)}${l.opt?' <span class="tag opt">option</span>':''}</h3><p>${esc(l.ssTitre)}</p></span>
+        <span class="lot-meta"><b>${f}/${n}</b>${dureeLot(l)} min</span>
+        <span class="chev">▶</span>
+      </button>
+      <div class="lot-body">${l.etapes.map(e=>{
+        const ok=estCoche(e.id);
+        return `<div class="etape ${ok?'done':''}">
+          <button class="box" role="checkbox" aria-checked="${ok}" data-case="${e.id}" aria-label="${esc(e.t)}"></button>
+          <div class="etape-c">
+            <div class="etape-t">${esc(e.t)} ${e.crit?'<span class="tag crit">critique</span>':''}${e.opt?'<span class="tag opt">facultatif</span>':''}<span class="tag opt">${e.min} min</span></div>
+            <div class="etape-d">${jetons(e.d)}</div>
+            ${e.code?`<div class="code"><button class="cp" data-cp>copier</button><pre>${esc(jetons(e.code))}</pre></div>`:''}
+            ${e.piege?`<div class="piege"><b>Piège</b><br>${jetons(e.piege)}</div>`:''}
+          </div></div>`;
+      }).join("")}</div>
+    </div>`;
+  }).join("")}
+  <div class="pv ${pret?'pret':''}">
+    <h2>PV de livraison</h2>
+    ${!d ? `<p>Crée un dossier pour démarrer un déploiement.</p>`
+      : pret ? `<p>Toutes les étapes critiques sont faites. L'app est en ligne, la base est fermée, la démo est effacée : tu peux confier l'adresse à l'artisan.</p>
+                ${d.etat==="livre"
+                  ? `<div class="sceau">Livré</div><br>
+                     ${DATA.clients.some(c=>c.dossierId===d.id)
+                        ? `<p style="margin-top:10px">Déjà au registre du parc client.</p>`
+                        : `<button class="btn plein" data-vers-client="1">Ajouter au registre client →</button>`}`
+                  : `<button class="btn plein" id="b-pv">Marquer ce dossier « Livré »</button>`}`
+      : `<p>Il reste <b>${rest.length}</b> étape${rest.length>1?'s':''} critique${rest.length>1?'s':''} avant de livrer :</p>
+         <div class="rest"><ul>${rest.slice(0,6).map(e=>`<li>${esc(e.t)}</li>`).join("")}${rest.length>6?`<li>… et ${rest.length-6} autre(s)</li>`:""}</ul></div>`}
+  </div>`;
+}
+
+/* =========================================================
+   M2 — COMMERCIAL : helpers
+   ========================================================= */
+const ETAPES_PIPE = [
+  {k:"contact", t:"Contact"},
+  {k:"rdv",     t:"RDV pris"},
+  {k:"demo",    t:"Démo faite"},
+  {k:"devis",   t:"Devis envoyé"},
+  {k:"signe",   t:"Signé"},
+  {k:"perdu",   t:"Perdu"}
+];
+const OBJECTIONS = [
+  {q:"C'est trop cher.",
+   r:"Compare à ce qu'il perd : un client qui appelle trois fois par semaine pour savoir où ça en est, c'est 2 h par semaine. À son taux horaire, l'abonnement est remboursé le premier mois. Et demande-lui ce qu'il facture, lui, pour un chantier."},
+  {q:"J'ai déjà un logiciel.",
+   r:"Lequel ? (écoute vraiment). Le sien sert son bureau. Le mien sert AUSSI ses clients : c'est le seul qui donne un espace où son client suit son chantier en direct et signe le devis. Ce n'est pas un remplacement, c'est ce que l'autre ne fait pas."},
+  {q:"Je ne suis pas à l'aise avec l'informatique.",
+   r:"Justement : je l'installe, je la configure, je la mets à ton nom, et je te forme 30 minutes. Toi, tu as trois boutons. Et si ça coince, tu m'appelles. Montre-lui l'écran d'accueil : gros boutons, pas de jargon."},
+  {q:"Et mes salariés, ils vont savoir s'en servir ?",
+   r:"Un code, leur prénom, et ils pointent. Fais la démo sur TON téléphone, devant lui. C'est plus simple qu'un SMS."},
+  {q:"Et si je vous quitte ? Je perds tout ?",
+   r:"Tes données sont à toi : je te les exporte quand tu veux. Le domaine peut être à ton nom. Ce que tu perds, c'est l'appli — comme quand tu résilies n'importe quel abonnement. Sois franc, ça rassure plus que ça n'inquiète."},
+  {q:"Je vais réfléchir.",
+   r:"Bien sûr. Deux questions : qu'est-ce qui te retient exactement ? Et on se rappelle quand — jeudi ou lundi ? (Ne raccroche JAMAIS sans une date. Note-la tout de suite dans la fiche.)"}
+];
+const SCRIPT_DEMO = [
+  "<b>0–2 min</b> — Tu ne montres rien. Tu demandes : « Comment tes clients savent où en est leur chantier aujourd'hui ? » Laisse-le répondre. Il va se plaindre.",
+  "<b>2–5 min</b> — Tu crées un chantier devant lui, avec SON nom d'entreprise et son logo déjà en place. L'appli est déjà à son nom : c'est le choc.",
+  "<b>5–9 min</b> — Tu publies un devis, un code apparaît. <b>Tu donnes ton téléphone au client</b> et tu le laisses entrer le code lui-même. Il voit l'avancement, les photos, il signe du doigt.",
+  "<b>9–12 min</b> — Tu montres la dictée vocale : tu parles, le compte-rendu se range tout seul. C'est ce qui déclenche le « ah oui quand même ».",
+  "<b>12–15 min</b> — Le prix. Mise en place + abonnement. Puis tu te tais. Le premier qui parle a perdu."
+];
+
+const CHAMPS_PRO = ["nom","metier","patron","tel","email","source","salaries","abo","miseEnPlace","action","dateAction","motif","notes"];
+
+function nouveauProspect(base){
+  const d = new Date(Date.now()+3*86400000).toISOString().slice(0,10);
+  return Object.assign({
+    id:"p"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    nom:"", metier:"", patron:"", tel:"", email:"", source:"", salaries:"",
+    abo:0, miseEnPlace:0,
+    etape:"contact", action:"Premier appel", dateAction:d, motif:"", notes:"",
+    cree:new Date().toISOString().slice(0,10)
+  }, base||{});
+}
+const prospects = () => (Array.isArray(DATA.prospects) ? DATA.prospects : (DATA.prospects=[]));
+const pipeEnCours = () => prospects().filter(p=>p.etape!=="signe" && p.etape!=="perdu");
+const aRelancer = () => pipeEnCours().filter(p=>{ const j=joursDepuis(p.dateAction); return j!==null && j>=0; })
+                        .sort((a,b)=>(joursDepuis(b.dateAction)||0)-(joursDepuis(a.dateAction)||0));
+const valeurPipe = () => pipeEnCours().reduce((s,p)=>s+nombre(p.abo)*12+nombre(p.miseEnPlace),0);
+function tauxConv(){
+  const vus = prospects().filter(p=>["demo","devis","signe","perdu"].indexOf(p.etape)>=0).length;
+  const gagnes = prospects().filter(p=>p.etape==="signe").length;
+  return { vus, gagnes, pct: vus ? Math.round(gagnes/vus*100) : null };
+}
+function signesCeMois(){
+  const m = new Date().toISOString().slice(0,7);
+  return prospects().filter(p=>p.etape==="signe" && String(p.majSigne||"").slice(0,7)===m).length;
+}
+/* =========================================================
+   M4 — SUPERVISION : la santé du parc, en direct
+   ---------------------------------------------------------
+   Deux sources, volontairement séparées :
+   1) LA VERSION RÉELLE — on télécharge le index.html du client
+      depuis son adresse et on y lit APP_VERSION. Aucun serveur,
+      aucune permission : c'est ce qui tourne vraiment chez lui.
+   2) LA SANTÉ DE LA BASE (conso IA, chantiers, équipe) — via la
+      Cloud Function « parcEtat » du projet console, qui lit les
+      bases clientes avec son compte de service.
+   ========================================================= */
+let SUP = {};          // résultats en mémoire (jamais stockés)
+let SUP_ENCOURS = false;
+let SUP_SA = "";       // compte de service à autoriser
+
+function fnParcEtat(){
+  return firebase.app().functions("europe-west1").httpsCallable("parcEtat");
+}
+
+/* 1) version réellement en ligne chez le client */
+async function lireVersionEnLigne(url){
+  if(!url) return { err:"pas d'adresse" };
+  try{
+    const u = url + (url.indexOf("?")>=0 ? "&" : "?") + "t=" + Date.now();
+    const r = await fetch(u, { cache:"no-store" });
+    if(!r.ok) return { err:"HTTP "+r.status };
+    const h = await r.text();
+    const m = h.match(/APP_VERSION\s*=\s*["']([^"']+)["']/);
+    return m ? { ver:m[1] } : { err:"version introuvable dans la page" };
+  }catch(e){
+    return { err:"page injoignable" };
+  }
+}
+
+async function actualiserParc(){
+  if(SUP_ENCOURS) return;
+  if(!DATA.clients.length){ toast("Aucun client au registre."); return; }
+  SUP_ENCOURS = true; render();
+
+  /* les versions, en parallèle, directement depuis le navigateur */
+  const vers = await Promise.all(DATA.clients.map(c=>lireVersionEnLigne(c.url)));
+  DATA.clients.forEach((c,i)=>{
+    SUP[c.id] = Object.assign({}, SUP[c.id], { web:vers[i] });
+  });
+
+  /* la santé des bases, via la fonction serveur */
+  try{
+    const r = await fnParcEtat()({ clients: DATA.clients.map(c=>({ id:c.id, fb:c.fb })) });
+    const d = r.data || {};
+    SUP_SA = d.compteService || "";
+    Object.keys(d.etats||{}).forEach(id=>{
+      SUP[id] = Object.assign({}, SUP[id], { db:d.etats[id] });
+    });
+  }catch(e){
+    const c = (e && e.code) || "";
+    if(String(c).indexOf("not-found")>=0 || String(e.message||"").indexOf("not-found")>=0)
+      toast("La fonction parcEtat n'est pas déployée (voir la marche à suivre en bas).");
+    else if(String(c).indexOf("permission-denied")>=0)
+      toast("La fonction refuse ton compte. Vérifie l'e-mail administrateur.");
+    else
+      toast("Fonction injoignable : "+((e&&e.message)||"erreur"));
+  }
+
+  /* on recale le registre sur la vérité : version réelle + conso IA */
+  let maj = 0;
+  DATA.clients.forEach(c=>{
+    const s = SUP[c.id] || {};
+    if(s.web && s.web.ver && s.web.ver !== c.ver){ c.ver = s.web.ver; maj++; }
+    if(s.db && s.db.ok){
+      const e = Math.round((s.db.iaEuros||0)*100)/100;
+      if(e !== nombre(c.coutIA)) { c.coutIA = e; maj++; }
+    }
+  });
+  if(maj) sauver(true);
+
+  SUP_ENCOURS = false;
+  render();
+  toast(maj ? "Parc actualisé — "+maj+" fiche(s) recalée(s) ✅" : "Parc actualisé ✅");
+}
+
+function vueSupervision(){
+  const cl = DATA.clients;
+  const lus = cl.filter(c=>SUP[c.id]);
+  const ko  = cl.filter(c=>{ const s=SUP[c.id]; return s && ((s.db && !s.db.ok) || (s.web && s.web.err)); });
+  const iaT = cl.reduce((t,c)=>{ const s=SUP[c.id]; return t + ((s&&s.db&&s.db.ok) ? nombre(s.db.iaEuros) : 0); }, 0);
+  const retards = cl.filter(c=>{ const s=SUP[c.id]; const v = (s&&s.web&&s.web.ver) || c.ver;
+    const a=numVersion(v), b=numVersion(versionMaitre()); return a!==null && b!==null && b>a; });
+
+  const compteurs = `
+  <div class="compteurs">
+    <div class="cpt"><div class="v">${cl.length}</div><div class="l">Apps supervisées</div>
+      <div class="s">${lus.length} interrogée(s)</div></div>
+    <div class="cpt ${ko.length?'rouge':''}"><div class="v">${ko.length}</div><div class="l">En défaut</div>
+      <div class="s">${ko.length?"une base ou une page ne répond pas":"tout répond"}</div></div>
+    <div class="cpt ${retards.length?'alerte':''}"><div class="v">${retards.length}</div><div class="l">Pas à jour</div>
+      <div class="s">réf. ${esc(versionMaitre())}</div></div>
+    <div class="cpt"><div class="v">${eur(iaT)}</div><div class="l">Conso IA du mois</div>
+      <div class="s">tout le parc · c'est ton coût</div></div>
+    <div class="cpt"><div class="v">${eur(mrr()-iaT-cl.filter(c=>c.statut==="actif").reduce((s,c)=>s+nombre(c.coutInfra),0))}</div>
+      <div class="l">Marge réelle / mois</div><div class="s">avec la conso mesurée</div></div>
+  </div>`;
+
+  const barre = `<div class="barre-out">
+    <div class="ref" style="border:none;background:none;padding:0">
+      <span class="hint" style="margin:0">La version est lue <b>dans l'app en ligne</b> du client : c'est ce qui tourne vraiment, pas ce que tu as noté. Les fiches du parc sont recalées automatiquement.</span>
+    </div>
+    <button class="btn plein" id="b-sup" ${SUP_ENCOURS?"disabled":""}>${SUP_ENCOURS?"Interrogation…":"Actualiser tout le parc"}</button>
+  </div>`;
+
+  if(!cl.length){
+    return compteurs + barre + `<div class="vide"><h3>Aucune app à superviser</h3>
+      <p>Ajoute d'abord des clients au registre (onglet Parc client).</p></div>`;
+  }
+
+  const liste = cl.map(c=>{
+    const s = SUP[c.id];
+    const vWeb = s && s.web && s.web.ver;
+    const rv = (()=>{ const a=numVersion(vWeb||c.ver), b=numVersion(versionMaitre());
+                      return (a===null||b===null) ? null : b-a; })();
+    const bd = !s ? `<span class="bdg stop">jamais interrogé</span>`
+      : (s.web && s.web.err) ? `<span class="bdg rouge">app : ${esc(s.web.err)}</span>`
+      : (rv===null ? `<span class="bdg stop">version ?</span>`
+        : rv>0 ? `<span class="bdg retard">retard de ${rv}</span>`
+               : `<span class="bdg ok">à jour</span>`);
+    const bdb = (s && s.db)
+      ? (s.db.ok ? `<span class="bdg ok">base OK</span>` : `<span class="bdg rouge">${esc(s.db.err)}</span>`)
+      : "";
+    const d = s && s.db && s.db.ok ? s.db : null;
+    const plaf = d && d.plafond ? Math.round(d.iaEuros/d.plafond*100) : null;
+
+    return `<div class="cli">
+      <button class="cli-head" data-supc="${c.id}">
+        <span class="cli-ini">${esc((c.nom||"?").trim().slice(0,2).toUpperCase())}</span>
+        <span class="cli-t">
+          <h3>${esc(c.nom||"Sans nom")} ${bd} ${bdb}</h3>
+          <p>${esc(vWeb||c.ver||"version inconnue")} · ${esc(c.fb||"projet ?")}</p>
+        </span>
+        <span class="cli-eur">
+          <b class="${d && plaf!==null && plaf>=80 ? 'neg':''}">${d?eur(d.iaEuros):"—"}</b>IA ce mois
+        </span>
+      </button>
+      ${d ? `<div class="cli-body" style="display:block">
+        <div class="compteurs" style="margin:10px 0 0">
+          <div class="cpt"><div class="v">${d.chantiers}</div><div class="l">Chantiers</div></div>
+          <div class="cpt"><div class="v">${d.equipe}</div><div class="l">Comptes équipe</div></div>
+          <div class="cpt"><div class="v">${d.iaAppels}</div><div class="l">Appels IA</div><div class="s">ce mois</div></div>
+          <div class="cpt ${plaf!==null && plaf>=80 ? 'alerte':''}"><div class="v">${plaf===null?"—":plaf+" %"}</div>
+            <div class="l">Du plafond IA</div><div class="s">${d.plafond?eur(d.plafond):"pas de plafond"}</div></div>
+          <div class="cpt"><div class="v" style="font-size:15px;font-family:var(--mon)">${d.iaMaj?new Date(d.iaMaj).toLocaleDateString('fr-FR'):"—"}</div>
+            <div class="l">Dernier usage IA</div><div class="s">signe de vie</div></div>
+        </div>
+        ${c.url?`<div class="btn-row" style="margin-top:10px"><a class="btn" href="${esc(c.url)}" target="_blank" rel="noopener">Ouvrir son app</a>
+          <a class="btn" href="https://console.firebase.google.com/project/${esc(c.fb)}/database" target="_blank" rel="noopener">Ouvrir sa base</a></div>`:""}
+      </div>` : (s ? `<div class="cli-body" style="display:block"><p class="hint" style="margin:10px 0 0">
+          ${s.db && !s.db.ok ? esc(s.db.err) : "Base non interrogée."}</p></div>` : "")}
+    </div>`;
+  }).join("");
+
+  const sa = SUP_SA || "465338398853-compute@developer.gserviceaccount.com";
+  const marche = `
+  <div class="card" style="margin-top:16px">
+    <h2>La marche à suivre — une seule fois, puis un clic par client</h2>
+    <p class="hint" style="margin-bottom:10px">La console ne peut pas lire les bases de tes clients toute seule : il faut lui en donner le droit. <b>Rien ne change chez le client</b> : son app n'est pas modifiée, sa base reste fermée, son artisan ne voit rien.</p>
+
+    <div class="bloc-t">1 · Déployer la fonction (une seule fois)</div>
+    <p class="etape-d">Décompresse le dossier <b>console-backend</b> que je t'ai donné, ouvre un terminal dedans, puis :</p>
+    <div class="code"><button class="cp" data-cp>copier</button><pre>firebase deploy --only functions --project batisuivi-base</pre></div>
+
+    <div class="bloc-t">2 · Autoriser la console dans CHAQUE projet client</div>
+    <p class="etape-d">Sur <b>console.cloud.google.com</b>, choisis le projet du client (ex. <span class="mono">batisuivi-90a71</span>) → <b>IAM et administration</b> → <b>Accorder l'accès</b>. Colle ce compte comme « principal » :</p>
+    <div class="code"><button class="cp" data-cp>copier</button><pre>${esc(sa)}</pre></div>
+    <p class="etape-d">Puis attribue-lui le rôle <b>« Lecteur Firebase Realtime Database »</b> (<span class="mono">Firebase Realtime Database Viewer</span>) → Enregistrer. <b>Lecture seule</b> : la console ne peut rien écrire chez ton client.</p>
+    <div class="piege"><b>Piège</b><br>Refais-le pour chaque nouveau client, sinon il apparaîtra en « Lecture refusée ». Je l'ai ajouté au lot 11 de la chaîne de montage.</div>
+  </div>`;
+
+  return compteurs + barre + liste + marche;
+}
+
+/* =========================================================
+   M3 — ARGENT : helpers
+   ========================================================= */
+const MOIS_FR = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+const factures = () => (Array.isArray(DATA.factures) ? DATA.factures : (DATA.factures=[]));
+const depenses = () => (Array.isArray(DATA.depenses) ? DATA.depenses : (DATA.depenses=[]));
+
+function fact(){
+  const r = reglages();
+  if(!r.facturation) r.facturation = { prefixe:"MC", compteur:1, delaiJours:15, seuilBase:37500, seuilMajore:41250 };
+  return r.facturation;
+}
+function emetteur(){
+  const r = reglages();
+  if(!r.emetteur) r.emetteur = {
+    nom:"Massilia Consulting", adresse:"Quetigny", siren:"905248373",
+    email:"massiliaconsulting1@gmail.com", tel:"", iban:""
+  };
+  return r.emetteur;
+}
+const auj = () => new Date().toISOString().slice(0,10);
+const dateFR = iso => !iso ? "—" : iso.slice(8,10)+"/"+iso.slice(5,7)+"/"+iso.slice(0,4);
+function plusJours(iso, j){ const t=Date.parse(iso+"T00:00:00"); return new Date(t+j*86400000).toISOString().slice(0,10); }
+
+function numeroSuivant(){
+  const f = fact();
+  const n = String(f.compteur||1).padStart(4,"0");
+  return (f.prefixe||"MC")+"-"+new Date().getFullYear()+"-"+n;
+}
+const anneeEnCours = () => String(new Date().getFullYear());
+const caEncaisse = an => factures().filter(f=>f.paye && String(f.datePaye||"").slice(0,4)===an).reduce((s,f)=>s+nombre(f.montant),0);
+const enAttente = () => factures().filter(f=>!f.paye).reduce((s,f)=>s+nombre(f.montant),0);
+const impayes = () => factures().filter(f=>!f.paye && f.echeance && joursDepuis(f.echeance)>0)
+                        .sort((a,b)=>joursDepuis(b.echeance)-joursDepuis(a.echeance));
+const depensesAn = an => depenses().filter(d=>String(d.date||"").slice(0,4)===an).reduce((s,d)=>s+nombre(d.montant),0);
+
+/* génère les factures d'abonnement du mois pour les clients actifs */
+function genererMois(){
+  const d = new Date();
+  const mois = d.toISOString().slice(0,7);
+  const f = fact();
+  let n = 0;
+  clientsActifs().forEach(c=>{
+    if(nombre(c.abo) <= 0) return;
+    if(factures().some(x=>x.cli===c.id && x.type==="abo" && x.mois===mois)) return;
+    const dt = auj();
+    factures().unshift({
+      id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      num:numeroSuivant(), cli:c.id, nomCli:c.nom, type:"abo", mois:mois,
+      libelle:"Abonnement BatiSuivi — "+MOIS_FR[d.getMonth()]+" "+d.getFullYear()+" (formule "+(c.palier||"basique")+")",
+      montant:nombre(c.abo), date:dt, echeance:plusJours(dt, nombre(f.delaiJours)||15),
+      paye:false, datePaye:""
+    });
+    f.compteur = (nombre(f.compteur)||1) + 1;
+    n++;
+  });
+  if(n){ sauver(true); render(); toast(n+" facture"+(n>1?"s":"")+" générée"+(n>1?"s":"")+" ✅"); }
+  else toast("Rien à générer : les factures du mois existent déjà.");
+}
+
+function factureLibre(){
+  const f = fact(), dt = auj();
+  factures().unshift({
+    id:"f"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    num:numeroSuivant(), cli:"", nomCli:"", type:"autre", mois:dt.slice(0,7),
+    libelle:"Mise en place BatiSuivi", montant:0, date:dt,
+    echeance:plusJours(dt, nombre(f.delaiJours)||15), paye:false, datePaye:""
+  });
+  f.compteur = (nombre(f.compteur)||1) + 1;
+  sauver(true); render(); toast("Facture créée — complète-la.");
+}
+
+/* =========================================================
+   M3 — ARGENT : vue
+   ========================================================= */
+let FILTRE_F = "toutes";
+
+function vueArgent(){
+  const f = fact(), em = emetteur(), an = anneeEnCours();
+  const ca = caEncaisse(an), dep = depensesAn(an), imp = impayes();
+  const base = nombre(f.seuilBase)||37500, maj = nombre(f.seuilMajore)||41250;
+  const pct = Math.min(100, Math.round(ca/maj*100));
+  const cls = ca>=maj ? "rouge" : (ca>=base*0.8 ? "chaud" : "");
+
+  const compteurs = `
+  <div class="compteurs">
+    <div class="cpt"><div class="v">${eur(mrr())}</div><div class="l">Revenu mensuel</div>
+      <div class="s">${clientsActifs().length} abonnement(s)</div></div>
+    <div class="cpt"><div class="v">${eur(ca)}</div><div class="l">Encaissé en ${an}</div>
+      <div class="s">factures payées</div></div>
+    <div class="cpt"><div class="v">${eur(enAttente())}</div><div class="l">En attente</div>
+      <div class="s">${factures().filter(x=>!x.paye).length} facture(s)</div></div>
+    <div class="cpt ${imp.length?'rouge':''}"><div class="v">${imp.length}</div><div class="l">Impayés</div>
+      <div class="s">${imp.length?"échéance dépassée":"personne ne te doit rien"}</div></div>
+    <div class="cpt"><div class="v">${eur(ca-dep)}</div><div class="l">Net ${an}</div>
+      <div class="s">${eur(dep)} de dépenses</div></div>
+  </div>`;
+
+  const jaugeTVA = `
+  <div class="tva">
+    <div class="tva-t">
+      <h3>Franchise de TVA — art. 293 B</h3>
+      <div class="g">${eur(ca)}<small>encaissé en ${an}</small></div>
+    </div>
+    <div class="tva-bar">
+      <i class="${cls}" style="width:${pct}%"></i>
+      <div class="tva-mk" style="left:${Math.round(base/maj*100)}%"><span>${base.toLocaleString("fr-FR")} €</span></div>
+    </div>
+    <p class="tva-l">
+      ${ca>=maj
+        ? `<b>Seuil majoré dépassé.</b> Tu dois facturer la TVA <b>dès le jour du dépassement</b>. Appelle ton comptable aujourd'hui.`
+        : ca>=base
+          ? `<b>Seuil de base dépassé</b> (${eur(base)}), mais tu restes sous le majoré (${eur(maj)}). Tu finis l'année sans TVA, puis tu la factures <b>dès le 1<sup>er</sup> janvier</b>. Anticipe tes prix.`
+          : `Il te reste <b>${eur(base-ca)}</b> avant le seuil de base (${eur(base)}). Au-delà : TVA l'année suivante. Au-delà de ${eur(maj)} : TVA immédiate.`}
+    </p>
+    <p class="tva-l" style="margin-top:6px;font-size:12px">Seuils prestations de services 2026 : ${eur(base)} / ${eur(maj)}. La réforme du seuil unique à 25 000 € a été abandonnée. <b>Fais confirmer par ton comptable</b> — je ne suis pas fiscaliste.</p>
+  </div>`;
+
+  const relances = imp.length ? `
+  <div class="relances">
+    <h3>Ils te doivent de l'argent</h3>
+    ${imp.map(x=>`<div class="rel-l">
+      <span><b>${esc(x.nomCli||"?")}</b> — ${esc(x.num)} · ${eur(x.montant)}</span>
+      <span class="j">${joursDepuis(x.echeance)} j de retard</span>
+      <button class="btn" data-frelance="${x.id}">Relancer</button>
+    </div>`).join("")}
+  </div>` : "";
+
+  const listeF = factures().filter(x=>{
+    if(FILTRE_F==="impayees") return !x.paye;
+    if(FILTRE_F==="payees") return !!x.paye;
+    return true;
+  });
+
+  const bloc = `
+  <div class="card">
+    <h2>Factures</h2>
+    <div class="barre-out">
+      <div class="filtres" style="flex:1;margin:0">
+        <button data-ff="toutes" aria-pressed="${FILTRE_F==="toutes"}">Toutes (${factures().length})</button>
+        <button data-ff="impayees" aria-pressed="${FILTRE_F==="impayees"}">À encaisser (${factures().filter(x=>!x.paye).length})</button>
+        <button data-ff="payees" aria-pressed="${FILTRE_F==="payees"}">Payées</button>
+      </div>
+      <button class="btn" id="b-fact-libre">+ Facture libre</button>
+      <button class="btn plein" id="b-fact-gen">Générer les abonnements du mois</button>
+    </div>
+    ${listeF.length ? listeF.map(x=>{
+      const r = !x.paye && x.echeance && joursDepuis(x.echeance)>0;
+      return `<div class="ligne ${x.paye?'paye':''} ${r?'impaye':''}">
+        <span class="num">${esc(x.num)}</span>
+        <span class="qui">${esc(x.nomCli||"Client ?")}<small>${esc(x.libelle||"")}</small></span>
+        <span class="num">${dateFR(x.date)}${x.paye?"":" → "+dateFR(x.echeance)}</span>
+        <span class="mt">${eur(x.montant)}</span>
+        <span class="act">
+          ${x.paye ? `<span class="bdg ok">payée le ${dateFR(x.datePaye)}</span>`
+                   : `<button class="btn" data-fpaye="${x.id}">Encaissée</button>`}
+          <button class="btn" data-fvoir="${x.id}">Voir</button>
+          <button class="btn danger" data-fdel="${x.id}">✕</button>
+        </span>
+      </div>`;
+    }).join("") : `<div class="col-vide">Aucune facture. Clique « Générer les abonnements du mois ».</div>`}
+    <p class="hint">Les factures reprennent les clients <b>actifs</b> du parc avec un abonnement renseigné. Une facture par client et par mois, jamais deux.</p>
+  </div>`;
+
+  const dep2 = `
+  <div class="duo">
+    <div class="card">
+      <h2>Dépenses ${an}</h2>
+      <button class="btn full" id="b-dep-new">+ Ajouter une dépense</button>
+      <div style="margin-top:10px">
+      ${depenses().length ? depenses().map(d=>`<div class="ligne">
+        <input type="text" data-df="libelle" data-id="${d.id}" value="${esc(d.libelle)}" placeholder="Anthropic, Google Cloud, domaine…" style="flex:1;min-width:120px">
+        <input type="text" class="mono" data-df="montant" data-id="${d.id}" value="${esc(d.montant)}" style="width:80px">
+        <input type="text" class="mono" data-df="date" data-id="${d.id}" value="${esc(d.date)}" style="width:118px">
+        <button class="btn danger" data-ddel="${d.id}">✕</button>
+      </div>`).join("") : `<div class="col-vide">Aucune dépense notée.</div>`}
+      </div>
+      <div class="calc-out" style="margin-top:10px">
+        <div class="calc-l"><span>Total dépensé en ${an}</span><b>${eur(dep)}</b></div>
+        <div class="calc-l"><span>Encaissé</span><b class="vert">${eur(ca)}</b></div>
+        <div class="calc-l gros"><span>Net</span><b class="${ca-dep<0?'rouge':'vert'}">${eur(ca-dep)}</b></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Tes réglages de facturation</h2>
+      <div class="grille">
+        <div><label>Ton nom</label><input type="text" data-em="nom" value="${esc(em.nom)}"></div>
+        <div><label>SIREN</label><input type="text" class="mono" data-em="siren" value="${esc(em.siren)}"></div>
+        <div><label>Adresse</label><input type="text" data-em="adresse" value="${esc(em.adresse)}"></div>
+        <div><label>E-mail</label><input type="text" data-em="email" value="${esc(em.email)}"></div>
+        <div><label>Téléphone</label><input type="text" data-em="tel" value="${esc(em.tel)}"></div>
+        <div><label>IBAN</label><input type="text" class="mono" data-em="iban" value="${esc(em.iban)}"></div>
+      </div>
+      <div class="bloc-t">Numérotation</div>
+      <div class="grille">
+        <div><label>Préfixe</label><input type="text" class="mono" data-fr="prefixe" value="${esc(f.prefixe)}"></div>
+        <div><label>Prochain n°</label><input type="text" class="mono" data-fr="compteur" value="${esc(f.compteur)}"></div>
+        <div><label>Délai de paiement (jours)</label><input type="text" class="mono" data-fr="delaiJours" value="${esc(f.delaiJours)}"></div>
+      </div>
+      <p class="hint">Prochaine facture : <b class="mono">${esc(numeroSuivant())}</b>. La numérotation doit être <b>continue</b> et sans trou — ne recule jamais le compteur.</p>
+      <div class="bloc-t">Seuils de TVA</div>
+      <div class="grille">
+        <div><label>Seuil de base €</label><input type="text" class="mono" data-fr="seuilBase" value="${esc(f.seuilBase)}"></div>
+        <div><label>Seuil majoré €</label><input type="text" class="mono" data-fr="seuilMajore" value="${esc(f.seuilMajore)}"></div>
+      </div>
+    </div>
+  </div>`;
+
+  return compteurs + jaugeTVA + relances + bloc + dep2;
+}
+
+/* ---- la facture imprimable ---- */
+function factureHTML(x){
+  const em = emetteur();
+  const c = DATA.clients.find(y=>y.id===x.cli);
+  return `
+  <div class="fac-h">
+    <div><h1>Facture</h1><div class="mono" style="font-size:13px;color:#5C6672">${esc(x.num)}</div></div>
+    <div class="em"><b>${esc(em.nom)}</b><br>${esc(em.adresse)}<br>SIREN ${esc(em.siren)}<br>${esc(em.email)}${em.tel?"<br>"+esc(em.tel):""}</div>
+  </div>
+  <div class="fac-m">
+    <div class="bl"><b>Facturé à</b>${esc(x.nomCli||"—")}${c&&c.patron?"<br>"+esc(c.patron):""}${c&&c.email?"<br>"+esc(c.email):""}</div>
+    <div class="bl"><b>Date</b>${dateFR(x.date)}</div>
+    <div class="bl"><b>Échéance</b>${dateFR(x.echeance)}</div>
+  </div>
+  <table class="fac">
+    <tr><th>Désignation</th><th class="r">Montant</th></tr>
+    <tr><td>${esc(x.libelle||"Prestation")}</td><td class="r mono">${eur(x.montant)}</td></tr>
+  </table>
+  <div class="fac-tot"><span>Total à payer</span><span>${eur(x.montant)}</span></div>
+  <div class="fac-men">
+    <b>TVA non applicable, article 293 B du CGI.</b><br>
+    ${em.iban?`Règlement par virement — IBAN : <b class="mono">${esc(em.iban)}</b><br>`:""}
+    Paiement à ${esc(String(fact().delaiJours||15))} jours à compter de la date d'émission.<br>
+    En cas de retard : pénalités au taux de refinancement BCE majoré de 10 points, et indemnité forfaitaire de recouvrement de 40 € (art. L441-10 et D441-5 du code de commerce).<br>
+    Pas d'escompte pour paiement anticipé.
+  </div>`;
+}
+
+function relancesHTML(x){
+  const j = joursDepuis(x.echeance);
+  const em = emetteur();
+  const t1 = `Bonjour,\n\nSauf erreur de ma part, la facture ${x.num} du ${dateFR(x.date)}, d'un montant de ${eur(x.montant)}, échue le ${dateFR(x.echeance)}, ne m'est pas encore parvenue.\n\nIl s'agit probablement d'un oubli. Pouvez-vous me confirmer la date de règlement ?\n\nBien cordialement,\n${em.nom}`;
+  const t2 = `Bonjour,\n\nJe reviens vers vous concernant la facture ${x.num} (${eur(x.montant)}), échue depuis ${j} jours et toujours impayée, malgré ma relance.\n\nJe vous remercie de procéder au règlement sous 8 jours. Passé ce délai, je serai contraint de suspendre l'accès à l'application, conformément à nos conditions.\n\nJe reste disponible si un point de blocage existe : appelez-moi, on trouvera une solution.\n\nCordialement,\n${em.nom}`;
+  const t3 = `MISE EN DEMEURE DE PAYER\n\nMadame, Monsieur,\n\nMalgré mes relances des dernières semaines, la facture ${x.num} du ${dateFR(x.date)}, d'un montant de ${eur(x.montant)}, échue le ${dateFR(x.echeance)}, demeure impayée à ce jour (${j} jours de retard).\n\nPar la présente, je vous mets en demeure de régler cette somme sous QUINZE (15) JOURS à compter de la réception de ce courrier.\n\nÀ défaut, je me réserve le droit d'engager toute action de recouvrement, et vous seront appliqués les pénalités de retard ainsi que l'indemnité forfaitaire de 40 € prévues par les articles L441-10 et D441-5 du code de commerce.\n\nFait à ${em.adresse}, le ${dateFR(auj())}.\n\n${em.nom}\nSIREN ${em.siren}`;
+  const b = (t,txt,note)=>`<div class="rel-b">
+      <h4>${esc(t)} <button class="btn" data-cptxt>copier</button></h4>
+      <pre>${esc(txt)}</pre>
+      ${note?`<p class="hint" style="padding:0 12px 10px">${note}</p>`:""}
+    </div>`;
+  return `<h2 style="font-family:var(--dis);text-transform:uppercase;margin-bottom:6px">Relancer ${esc(x.nomCli||"ce client")}</h2>
+    <p class="hint" style="margin-bottom:16px">${esc(x.num)} · ${eur(x.montant)} · <b>${j} jours de retard</b>. Commence toujours par le premier. Le téléphone marche mieux que l'e-mail.</p>
+    ${b("1 · Rappel courtois — dès 3 jours", t1, "Ne suppose jamais la mauvaise foi : 9 fois sur 10 c'est un oubli.")}
+    ${b("2 · Relance ferme — vers 15 jours", t2, "C'est ici que tu poses la conséquence. Reste ouvert au dialogue.")}
+    ${b("3 · Mise en demeure — vers 30 jours", t3, "À envoyer en <b>recommandé avec accusé de réception</b>. C'est ce courrier qui fait courir les pénalités et ouvre la voie à un recouvrement.")}`;
+}
+
+function ouvrirSheet(html){ $("#sh-body").innerHTML = html; $("#sheet").classList.add("on"); }
+
+/* =========================================================
+   M2 — COMMERCIAL : vue
+   ========================================================= */
+let PRO_SEL = null;
+
+function vueCommercial(){
+  const rel = aRelancer(), tc = tauxConv();
+  const calc = reglages().calc || (reglages().calc = { mep:490, abo:59, ia:3, infra:1, heures:3, taux:60 });
+
+  const compteurs = `
+  <div class="compteurs">
+    <div class="cpt"><div class="v">${pipeEnCours().length}</div><div class="l">En cours</div>
+      <div class="s">${prospects().length} au total</div></div>
+    <div class="cpt ${rel.length?'rouge':''}"><div class="v">${rel.length}</div><div class="l">À relancer</div>
+      <div class="s">${rel.length?"aujourd'hui ou en retard":"rien ne traîne"}</div></div>
+    <div class="cpt"><div class="v">${tc.pct===null?"—":tc.pct+" %"}</div><div class="l">Conversion</div>
+      <div class="s">${tc.gagnes} signé(s) / ${tc.vus} démo(s)</div></div>
+    <div class="cpt"><div class="v">${eur(valeurPipe())}</div><div class="l">Valeur du pipeline</div>
+      <div class="s">1re année, si tout signe</div></div>
+    <div class="cpt"><div class="v">${signesCeMois()}</div><div class="l">Signés ce mois</div>
+      <div class="s">${new Date().toLocaleDateString('fr-FR',{month:'long'})}</div></div>
+  </div>`;
+
+  const relances = rel.length ? `
+  <div class="relances">
+    <h3>À faire maintenant</h3>
+    ${rel.map(p=>{
+      const j = joursDepuis(p.dateAction);
+      return `<div class="rel-l">
+        <span><b>${esc(p.nom||"Sans nom")}</b> — ${esc(p.action||"relancer")}</span>
+        <span class="j">${j===0?"aujourd'hui":"en retard de "+j+" j"}</span>
+        <button class="btn" data-pro="${p.id}">Ouvrir</button>
+      </div>`;
+    }).join("")}
+  </div>` : "";
+
+  const barre = `<div class="barre-out"><div class="ref" style="border:none;background:none;padding:0">
+    <span class="hint" style="margin:0">Glisse tes prospects d'une colonne à l'autre avec les flèches. Ne quitte jamais un appel sans une <b>date de relance</b>.</span>
+  </div><button class="btn plein" id="b-pro-new">+ Nouveau prospect</button></div>`;
+
+  const board = `<div class="board">${ETAPES_PIPE.map((et,i)=>{
+    const l = prospects().filter(p=>p.etape===et.k);
+    return `<div class="col ${et.k}">
+      <div class="col-t"><span>${esc(et.t)}</span><b>${l.length}</b></div>
+      ${l.length ? l.map(p=>{
+        const j = joursDepuis(p.dateAction);
+        const chaud = (et.k!=="signe" && et.k!=="perdu" && j!==null && j>=0);
+        return `<div class="pcard ${PRO_SEL===p.id?'sel':''} ${chaud?'chaud':''}" data-pro="${p.id}">
+          <h4>${esc(p.nom||"Sans nom")}</h4>
+          <p>${esc(p.metier||"métier ?")}${p.abo?" · "+eur(p.abo)+"/mois":""}</p>
+          ${(et.k!=="signe"&&et.k!=="perdu"&&p.action)?`<div class="act ${chaud?'retard':''}">${esc(p.action)}${p.dateAction?" · "+esc(p.dateAction.slice(8,10)+"/"+p.dateAction.slice(5,7)):""}</div>`:""}
+          <div class="pmove">
+            ${i>0?`<button data-pmove="${p.id}" data-dir="-1" title="Reculer">◀</button>`:""}
+            ${i<ETAPES_PIPE.length-1?`<button data-pmove="${p.id}" data-dir="1" title="Avancer">▶</button>`:""}
+          </div>
+        </div>`;
+      }).join("") : `<div class="col-vide">vide</div>`}
+    </div>`;
+  }).join("")}</div>`;
+
+  const p = prospects().find(x=>x.id===PRO_SEL);
+  const fiche = p ? `
+  <div class="card">
+    <h2>Fiche — ${esc(p.nom||"Sans nom")}</h2>
+    <div class="grille">
+      <div><label>Entreprise</label><input type="text" data-pf="nom" data-id="${p.id}" value="${esc(p.nom)}"></div>
+      <div><label>Métier</label><input type="text" data-pf="metier" data-id="${p.id}" value="${esc(p.metier)}"></div>
+      <div><label>Patron</label><input type="text" data-pf="patron" data-id="${p.id}" value="${esc(p.patron)}"></div>
+      <div><label>Téléphone</label><input type="text" data-pf="tel" data-id="${p.id}" value="${esc(p.tel)}"></div>
+      <div><label>E-mail</label><input type="text" data-pf="email" data-id="${p.id}" value="${esc(p.email)}"></div>
+      <div><label>Salariés</label><input type="text" data-pf="salaries" data-id="${p.id}" value="${esc(p.salaries)}"></div>
+      <div><label>D'où il vient</label><input type="text" data-pf="source" data-id="${p.id}" value="${esc(p.source)}" placeholder="bouche-à-oreille, prospection…"></div>
+    </div>
+
+    <div class="bloc-t">Prochaine action — la seule chose qui compte</div>
+    <div class="grille">
+      <div><label>Quoi</label><input type="text" data-pf="action" data-id="${p.id}" value="${esc(p.action)}" placeholder="Rappeler pour caler la démo"></div>
+      <div><label>Quand</label><input type="text" class="mono" data-pf="dateAction" data-id="${p.id}" value="${esc(p.dateAction)}" placeholder="2026-07-18"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" data-prel="${p.id}" data-j="3">Relancer dans 3 jours</button>
+      <button class="btn" data-prel="${p.id}" data-j="7">Relancer dans 1 semaine</button>
+    </div>
+
+    <div class="bloc-t">Prix pressenti</div>
+    <div class="grille">
+      <div><label>Abonnement € / mois</label><input type="text" class="mono" data-pf="abo" data-id="${p.id}" value="${esc(p.abo)}"></div>
+      <div><label>Mise en place €</label><input type="text" class="mono" data-pf="miseEnPlace" data-id="${p.id}" value="${esc(p.miseEnPlace)}"></div>
+    </div>
+
+    ${p.etape==="perdu" ? `<div class="bloc-t">Pourquoi il est perdu</div>
+      <input type="text" data-pf="motif" data-id="${p.id}" value="${esc(p.motif)}" placeholder="Trop cher / a pris un concurrent / ne répond plus">
+      <p class="hint">Note-le à chaque fois. Au bout de 10, tu sauras ce qui cloche vraiment.</p>` : ""}
+
+    <label>Notes d'échange</label>
+    <textarea data-pf="notes" data-id="${p.id}" placeholder="Ce qu'il a dit, ce qui l'inquiète, ce qu'il veut…">${esc(p.notes)}</textarea>
+
+    <div class="btn-row" style="margin-top:12px">
+      ${p.etape==="signe"
+        ? (DATA.dossiers.some(d=>d.proId===p.id)
+            ? `<button class="btn" disabled>Déploiement déjà lancé</button>`
+            : `<button class="btn plein" data-pdeploy="${p.id}">Lancer son déploiement →</button>`)
+        : `<button class="btn plein" data-psigne="${p.id}">Il a signé ✍️</button>`}
+      <button class="btn danger" data-pdel="${p.id}">Supprimer</button>
+    </div>
+  </div>` : "";
+
+  const outils = `
+  <div class="duo">
+    <div class="card">
+      <h2>Calculateur de prix</h2>
+      <div class="grille">
+        <div><label>Mise en place €</label><input type="text" class="mono" data-calc="mep" value="${esc(calc.mep)}"></div>
+        <div><label>Abonnement € / mois</label><input type="text" class="mono" data-calc="abo" value="${esc(calc.abo)}"></div>
+        <div><label>Conso IA € / mois</label><input type="text" class="mono" data-calc="ia" value="${esc(calc.ia)}"></div>
+        <div><label>Infra € / mois</label><input type="text" class="mono" data-calc="infra" value="${esc(calc.infra)}"></div>
+        <div><label>Heures de déploiement</label><input type="text" class="mono" data-calc="heures" value="${esc(calc.heures)}"></div>
+        <div><label>Ton taux horaire €</label><input type="text" class="mono" data-calc="taux" value="${esc(calc.taux)}"></div>
+      </div>
+      <div id="calc-out">${calcOutHTML()}</div>
+    </div>
+
+    <div class="card">
+      <h2>Le script de démo — 15 minutes</h2>
+      <ul class="script">${SCRIPT_DEMO.map(s=>`<li>${s}</li>`).join("")}</ul>
+      <div class="bloc-t">Les objections</div>
+      ${OBJECTIONS.map(o=>`<div class="obj">
+        <div class="obj-q">${esc(o.q)}</div>
+        <div class="obj-r">${esc(o.r)}</div>
+      </div>`).join("")}
+    </div>
+  </div>`;
+
+  return compteurs + relances + barre + board + fiche + outils;
+}
+
+function calcOutHTML(){
+  const c = reglages().calc || {};
+  const abo=nombre(c.abo), mep=nombre(c.mep), ia=nombre(c.ia), infra=nombre(c.infra);
+  const prod = nombre(c.heures)*nombre(c.taux);
+  const margeM = abo - ia - infra;
+  const pct = abo>0 ? Math.round(margeM/abo*100) : 0;
+  const an1 = mep + abo*12 - (ia+infra)*12 - prod;
+  const mois = margeM>0 ? Math.ceil(Math.max(0, prod-mep)/margeM) : null;
+  return `<div class="calc-out">
+    <div class="calc-l"><span>Coût de ton déploiement</span><b>${eur(prod)}</b></div>
+    <div class="calc-l"><span>Ce qu'il te coûte / mois</span><b>${eur(ia+infra)}</b></div>
+    <div class="calc-l"><span>Marge mensuelle</span><b class="${margeM<0?'rouge':'vert'}">${eur(margeM)} · ${pct} %</b></div>
+    <div class="calc-l"><span>Rentabilisé au bout de</span><b>${mois===null?"jamais (marge ≤ 0)":(mois===0?"tout de suite":mois+" mois")}</b></div>
+    <div class="calc-l gros"><span>Gain sur 12 mois</span><b class="${an1<0?'rouge':'vert'}">${eur(an1)}</b></div>
+  </div>`;
+}
+
+/* =========================================================
+   M1 — PARC CLIENT : vue
+   ========================================================= */
+function compteursHTML(){
+  const maj = aMettreAJour(), sauv = sauvegardesEnRetard();
+  const m = margeTotale();
+  return `
+  <div class="compteurs">
+    <div class="cpt"><div class="v">${clientsActifs().length}</div><div class="l">Clients actifs</div>
+      <div class="s">${DATA.clients.length} au total</div></div>
+    <div class="cpt"><div class="v">${eur(mrr())}</div><div class="l">Revenu mensuel</div>
+      <div class="s">soit ${eur(mrr()*12)} / an</div></div>
+    <div class="cpt ${m<0?'rouge':''}"><div class="v">${eur(m)}</div><div class="l">Marge / mois</div>
+      <div class="s">après IA et infra</div></div>
+    <div class="cpt ${maj.length?'alerte':''}"><div class="v">${maj.length}</div><div class="l">À mettre à jour</div>
+      <div class="s">${maj.length?maj.map(c=>esc(c.nom||"?")).join(", "):"tout le parc est à jour"}</div></div>
+    <div class="cpt ${sauv.length?'alerte':''}"><div class="v">${sauv.length}</div><div class="l">Sauvegardes en retard</div>
+      <div class="s">plus de 30 jours</div></div>
+  </div>`;
+}
+function majCompteurs(){
+  const el = document.querySelector(".compteurs");
+  if(el) el.outerHTML = compteursHTML();
+}
+
+function vueParc(){
+  const maj = aMettreAJour();
+  const compteurs = compteursHTML();
+
+  const barre = `
+  <div class="barre-out">
+    <div class="ref">
+      <label for="r-vm">Version du fichier maître</label>
+      <input type="text" id="r-vm" class="mono" value="${esc(versionMaitre())}" placeholder="v195 · 13/07">
+    </div>
+    <button class="btn plein" id="b-cli-new">+ Nouveau client</button>
+  </div>`;
+
+  if(!DATA.clients.length){
+    return compteurs + barre + `<div class="vide">
+      <h3>Aucun client au registre</h3>
+      <p>Ajoute-les à la main, ou termine un déploiement : dans la chaîne de montage, un dossier marqué « Livré » se transforme en client d'un seul clic — sans rien resaisir.</p>
+    </div>`;
+  }
+
+  const liste = DATA.clients.map(c=>{
+    const r = retardVersion(c);
+    const j = joursDepuis(c.sauve);
+    const mc = margeClient(c);
+    const badge = c.statut!=="actif"
+      ? `<span class="bdg stop">${esc(c.statut)}</span>`
+      : (r===null ? `<span class="bdg stop">version ?</span>`
+        : r>0 ? `<span class="bdg retard">retard de ${r} version${r>1?'s':''}</span>`
+              : `<span class="bdg ok">à jour</span>`);
+    const bsauv = (c.statut==="actif" && (j===null || j>30))
+      ? `<span class="bdg rouge">sauvegarde ${j===null?"jamais faite":"il y a "+j+" j"}</span>` : "";
+    const ouv = CLI_OUV===c.id;
+
+    return `<div class="cli ${ouv?'ouvert':''} ${c.statut!=='actif'?esc(c.statut):''}">
+      <button class="cli-head" data-cli="${c.id}">
+        <span class="cli-ini">${esc((c.nom||"?").trim().slice(0,2).toUpperCase())}</span>
+        <span class="cli-t">
+          <h3>${esc(c.nom||"Sans nom")} ${badge} ${bsauv}</h3>
+          <p>${esc(c.ver||"version inconnue")} · ${esc(c.palier)} · ${esc(c.metier||"métier ?")}</p>
+        </span>
+        <span class="cli-eur"><b class="${mc<0?'neg':''}">${eur(mc)}</b>marge / mois</span>
+      </button>
+      <div class="cli-body">
+        <div class="bloc-t">Identité</div>
+        <div class="grille">
+          <div><label>Entreprise</label><input type="text" data-cf="nom" data-id="${c.id}" value="${esc(c.nom)}"></div>
+          <div><label>Métier</label><input type="text" data-cf="metier" data-id="${c.id}" value="${esc(c.metier)}" placeholder="maçon, plombier…"></div>
+          <div><label>Patron</label><input type="text" data-cf="patron" data-id="${c.id}" value="${esc(c.patron)}"></div>
+          <div><label>Téléphone</label><input type="text" data-cf="tel" data-id="${c.id}" value="${esc(c.tel)}"></div>
+          <div><label>E-mail</label><input type="text" data-cf="email" data-id="${c.id}" value="${esc(c.email)}"></div>
+        </div>
+
+        <div class="bloc-t">Technique</div>
+        <div class="grille">
+          <div><label>Projet Firebase</label><input type="text" class="mono" data-cf="fb" data-id="${c.id}" value="${esc(c.fb)}"></div>
+          <div><label>Dépôt GitHub</label><input type="text" class="mono" data-cf="repo" data-id="${c.id}" value="${esc(c.repo)}"></div>
+          <div><label>Adresse de l'app</label><input type="text" class="mono" data-cf="url" data-id="${c.id}" value="${esc(c.url)}"></div>
+          <div><label>Nom de domaine</label><input type="text" class="mono" data-cf="dom" data-id="${c.id}" value="${esc(c.dom)}"></div>
+          <div><label>Version installée</label><input type="text" class="mono" data-cf="ver" data-id="${c.id}" value="${esc(c.ver)}"></div>
+        </div>
+
+        <div class="bloc-t">Contrat</div>
+        <div class="grille">
+          <div><label>Palier</label><select data-cf="palier" data-id="${c.id}">
+            <option value="basique" ${c.palier==="basique"?"selected":""}>Basique</option>
+            <option value="premium" ${c.palier==="premium"?"selected":""}>Premium</option>
+          </select></div>
+          <div><label>Abonnement € / mois</label><input type="text" class="mono" data-cf="abo" data-id="${c.id}" value="${esc(c.abo)}"></div>
+          <div><label>Mise en place € (une fois)</label><input type="text" class="mono" data-cf="miseEnPlace" data-id="${c.id}" value="${esc(c.miseEnPlace)}"></div>
+          <div><label>Jour de prélèvement</label><input type="text" class="mono" data-cf="jourPrel" data-id="${c.id}" value="${esc(c.jourPrel)}"></div>
+          <div><label>Statut</label><select data-cf="statut" data-id="${c.id}">
+            <option value="actif" ${c.statut==="actif"?"selected":""}>Actif</option>
+            <option value="suspendu" ${c.statut==="suspendu"?"selected":""}>Suspendu</option>
+            <option value="resilie" ${c.statut==="resilie"?"selected":""}>Résilié</option>
+          </select></div>
+        </div>
+
+        <div class="bloc-t">Ce qu'il te coûte — <span style="text-transform:none;letter-spacing:0;font-weight:400">c'est ton coût, jamais le sien</span></div>
+        <div class="grille">
+          <div><label>Conso IA € / mois</label><input type="text" class="mono" data-cf="coutIA" data-id="${c.id}" value="${esc(c.coutIA)}"></div>
+          <div><label>Infra € / mois</label><input type="text" class="mono" data-cf="coutInfra" data-id="${c.id}" value="${esc(c.coutInfra)}"></div>
+          <div><label>Marge</label><input type="text" class="mono" value="${eur(mc)}" disabled></div>
+        </div>
+        <p class="hint">La conso IA se remplira toute seule au module M4 (supervision). En attendant, recopie-la depuis l'espace dev de son app.</p>
+
+        <div class="bloc-t">Suivi</div>
+        <div class="grille">
+          <div><label>Livré le</label><input type="text" class="mono" data-cf="livre" data-id="${c.id}" value="${esc(c.livre)}" placeholder="2026-07-14"></div>
+          <div><label>Dernière sauvegarde</label><input type="text" class="mono" data-cf="sauve" data-id="${c.id}" value="${esc(c.sauve)}" placeholder="2026-07-14"></div>
+        </div>
+        <label>Notes</label>
+        <textarea data-cf="notes" data-id="${c.id}">${esc(c.notes)}</textarea>
+
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn" data-cli-maj="${c.id}">Mis à jour en ${esc(versionMaitre())}</button>
+          <button class="btn" data-cli-sauv="${c.id}">Sauvegarde faite aujourd'hui</button>
+        </div>
+        <div class="btn-row">
+          ${c.url?`<a class="btn" href="${esc(c.url)}" target="_blank" rel="noopener">Ouvrir son app</a>`:`<span></span>`}
+          <button class="btn danger" data-cli-del="${c.id}">Retirer du registre</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const planMaj = maj.length ? `
+    <div class="avert" style="margin-top:16px">
+      <b>Plan de mise à jour</b>
+      ${maj.length} client${maj.length>1?'s':''} tourne${maj.length>1?'nt':''} sur une vieille version. Pour chacun : télécharger le fichier maître, y coller SA config Firebase, remplacer <span class="mono">index.html</span> dans son dépôt, puis cliquer « Mis à jour ». Les Cloud Functions ne sont à redéployer que si tu les as modifiées.
+    </div>` : "";
+
+  return compteurs + barre + liste + planMaj;
+}
+
+function vueSoon(m){
+  return `<div class="soon-c">
+    <span class="soon-tag">Module ${m.soon} — à venir</span>
+    <h2>${esc(m.t)}</h2>
+    <p>${esc(m.desc)}</p>
+    <div class="soon-l"><ul>${m.pts.map(p=>`<li>${esc(p)}</li>`).join("")}</ul></div>
+  </div>`;
+}
+
+function render(){
+  renderNav();
+  if(MOD==="deploiement"){ renderPanneau(); renderJauge(); $("#vue").innerHTML = vueDeploiement(); }
+  else if(MOD==="parc"){ $("#vue").innerHTML = vueParc(); }
+  else if(MOD==="commercial"){ $("#vue").innerHTML = vueCommercial(); }
+  else if(MOD==="argent"){ $("#vue").innerHTML = vueArgent(); }
+  else if(MOD==="supervision"){ $("#vue").innerHTML = vueSupervision(); }
+  else { $("#vue").innerHTML = vueSoon(MODULES.find(m=>m.k===MOD)); }
+}
+
+/* =========================================================
+   ACTIONS
+   ========================================================= */
+function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("on"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"),2400); }
+let _cb=null;
+function demander(titre,texte,cb){ $("#mo-t").textContent=titre; $("#mo-p").innerHTML=texte; _cb=cb; $("#modal").classList.add("on"); }
+$("#mo-non").onclick = ()=>{ $("#modal").classList.remove("on"); _cb=null; };
+$("#mo-oui").onclick = ()=>{ $("#modal").classList.remove("on"); const c=_cb; _cb=null; if(c) c(); };
+$("#modal").addEventListener("click", e=>{ if(e.target.id==="modal"){ $("#modal").classList.remove("on"); _cb=null; } });
+
+document.addEventListener("click", ev=>{
+  const nav = ev.target.closest("[data-mod]");
+  if(nav){ MOD = nav.dataset.mod; render(); window.scrollTo(0,0); return; }
+
+  const cp = ev.target.closest("[data-cp]");
+  if(cp){
+    const txt = cp.parentElement.querySelector("pre").textContent;
+    navigator.clipboard.writeText(txt).then(()=>{
+      cp.textContent="copié ✓"; cp.classList.add("ok");
+      setTimeout(()=>{ cp.textContent="copier"; cp.classList.remove("ok"); },1400);
+    }).catch(()=>toast("Copie impossible — sélectionne le texte à la main."));
+    return;
+  }
+  const b = ev.target.closest("[data-case]");
+  if(b){
+    const d=actif(); if(!d){ toast("Crée d'abord un dossier."); return; }
+    if(!d.cases) d.cases={};
+    d.cases[b.dataset.case] = !d.cases[b.dataset.case];
+    sauver(); render(); return;
+  }
+  const h = ev.target.closest("[data-lot]");
+  if(h){ const n=h.dataset.lot; OUVERT[n]=!OUVERT[n]; render(); return; }
+  const g = ev.target.closest("[data-go]");
+  if(g){ const n=g.dataset.go; OUVERT[n]=true; render(); const el=document.getElementById("lot-"+n); if(el) el.scrollIntoView({block:"start"}); return; }
+  if(ev.target.id==="b-pv"){ const d=actif(); if(d){ d.etat="livre"; sauver(true); render(); toast("Dossier marqué « Livré » ✅"); } return; }
+
+  /* ---- M1 parc client ---- */
+  if(ev.target.id==="b-cli-new"){
+    const c = nouveauClient(); DATA.clients.unshift(c); CLI_OUV=c.id; sauver(true); render();
+    const f=document.querySelector('[data-cf="nom"]'); if(f) f.focus();
+    return;
+  }
+  const ch = ev.target.closest("[data-cli]");
+  if(ch){ CLI_OUV = (CLI_OUV===ch.dataset.cli) ? null : ch.dataset.cli; render(); return; }
+
+  const bm = ev.target.closest("[data-cli-maj]");
+  if(bm){
+    const c = DATA.clients.find(x=>x.id===bm.dataset.cliMaj); if(!c) return;
+    c.ver = versionMaitre(); sauver(true); render(); toast("Version mise à jour ✅");
+    return;
+  }
+  const bs = ev.target.closest("[data-cli-sauv]");
+  if(bs){
+    const c = DATA.clients.find(x=>x.id===bs.dataset.cliSauv); if(!c) return;
+    c.sauve = new Date().toISOString().slice(0,10); sauver(true); render(); toast("Sauvegarde notée ✅");
+    return;
+  }
+  const bd = ev.target.closest("[data-cli-del]");
+  if(bd){
+    const c = DATA.clients.find(x=>x.id===bd.dataset.cliDel); if(!c) return;
+    demander("Retirer ce client du registre ?",
+      `« ${esc(c.nom||"Sans nom")} » disparaît de la console. <b>Son app, sa base et son dépôt ne sont pas touchés</b> — c'est juste ta fiche de suivi.`,
+      ()=>{ DATA.clients = DATA.clients.filter(x=>x.id!==c.id); CLI_OUV=null; sauver(true); render(); toast("Client retiré du registre."); });
+    return;
+  }
+
+  /* ---- pont : un déploiement livré devient un client ---- */
+  const bc = ev.target.closest("[data-vers-client]");
+  if(bc){
+    const d = actif(); if(!d) return;
+    if(DATA.clients.some(c=>c.dossierId===d.id)){ toast("Ce déploiement est déjà au registre."); MOD="parc"; render(); return; }
+    const c = nouveauClient({
+      dossierId:d.id, nom:d.nom||"", fb:d.fb||"", url:d.url||"", dom:d.dom||"", ver:d.ver||versionMaitre(),
+      repo:(d.gh&&d.slug)?(d.gh+"/batisuivi-"+d.slug):"", notes:d.notes||""
+    });
+    DATA.clients.unshift(c); CLI_OUV=c.id; MOD="parc"; sauver(true); render(); window.scrollTo(0,0);
+    toast("Client ajouté au registre — complète son contrat.");
+    return;
+  }
+
+  /* ---- M2 commercial ---- */
+  if(ev.target.id==="b-pro-new"){
+    const p = nouveauProspect(); prospects().unshift(p); PRO_SEL=p.id; sauver(true); render();
+    const f=document.querySelector('[data-pf="nom"]'); if(f) f.focus();
+    return;
+  }
+  const pv = ev.target.closest("[data-pro]");
+  if(pv && !ev.target.closest("[data-pmove]")){
+    PRO_SEL = (PRO_SEL===pv.dataset.pro) ? null : pv.dataset.pro;
+    render();
+    if(PRO_SEL){ const f=document.querySelector('[data-pf="action"]'); if(f) f.scrollIntoView({block:"center"}); }
+    return;
+  }
+  const pm = ev.target.closest("[data-pmove]");
+  if(pm){
+    const p = prospects().find(x=>x.id===pm.dataset.pmove); if(!p) return;
+    const i = ETAPES_PIPE.findIndex(e=>e.k===p.etape);
+    const n = Math.max(0, Math.min(ETAPES_PIPE.length-1, i + parseInt(pm.dataset.dir,10)));
+    p.etape = ETAPES_PIPE[n].k;
+    if(p.etape==="signe"){ p.majSigne = new Date().toISOString().slice(0,10); p.action=""; }
+    sauver(true); render(); toast("→ "+ETAPES_PIPE[n].t);
+    return;
+  }
+  const pr = ev.target.closest("[data-prel]");
+  if(pr){
+    const p = prospects().find(x=>x.id===pr.dataset.prel); if(!p) return;
+    const j = parseInt(pr.dataset.j,10);
+    p.dateAction = new Date(Date.now()+j*86400000).toISOString().slice(0,10);
+    sauver(true); render(); toast("Relance calée au "+p.dateAction.slice(8,10)+"/"+p.dateAction.slice(5,7));
+    return;
+  }
+  const ps = ev.target.closest("[data-psigne]");
+  if(ps){
+    const p = prospects().find(x=>x.id===ps.dataset.psigne); if(!p) return;
+    p.etape="signe"; p.majSigne=new Date().toISOString().slice(0,10); p.action="";
+    sauver(true); render(); toast("Signé ✍️ Lance son déploiement.");
+    return;
+  }
+  const pd = ev.target.closest("[data-pdeploy]");
+  if(pd){
+    const p = prospects().find(x=>x.id===pd.dataset.pdeploy); if(!p) return;
+    const slug = (p.nom||"client").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+                  .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,20);
+    const d = nouveauDossier({
+      proId:p.id, nom:p.nom||"Sans nom", slug:slug, fb:"batisuivi-"+slug,
+      ver:versionMaitre(), etat:"vendu",
+      notes:"Abonnement "+eur(p.abo)+"/mois · mise en place "+eur(p.miseEnPlace)+(p.notes?("\n\n"+p.notes):"")
+    });
+    if(DATA.posteOk) LOTS[0].etapes.forEach(e=>d.cases[e.id]=true);
+    DATA.dossiers.push(d); DATA.actif=d.id; MOD="deploiement";
+    sauver(true); render(); window.scrollTo(0,0);
+    toast("Déploiement créé — déroule les lots.");
+    return;
+  }
+  const pdel = ev.target.closest("[data-pdel]");
+  if(pdel){
+    const p = prospects().find(x=>x.id===pdel.dataset.pdel); if(!p) return;
+    demander("Supprimer ce prospect ?", `« ${esc(p.nom||"Sans nom")} » disparaît du pipeline.`, ()=>{
+      DATA.prospects = prospects().filter(x=>x.id!==p.id); PRO_SEL=null; sauver(true); render(); toast("Prospect supprimé.");
+    });
+    return;
+  }
+
+  /* ---- M4 supervision ---- */
+  if(ev.target.id==="b-sup"){ actualiserParc(); return; }
+
+  /* ---- M3 argent ---- */
+  if(ev.target.id==="b-fact-gen"){ genererMois(); return; }
+  if(ev.target.id==="b-fact-libre"){ factureLibre(); return; }
+  if(ev.target.id==="b-dep-new"){
+    depenses().unshift({ id:"e"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), libelle:"", montant:0, date:auj() });
+    sauver(true); render(); return;
+  }
+  const ff = ev.target.closest("[data-ff]");
+  if(ff){ FILTRE_F = ff.dataset.ff; render(); return; }
+
+  const fp = ev.target.closest("[data-fpaye]");
+  if(fp){
+    const x = factures().find(y=>y.id===fp.dataset.fpaye); if(!x) return;
+    x.paye = true; x.datePaye = auj(); sauver(true); render(); toast("Encaissée ✅");
+    return;
+  }
+  const fv = ev.target.closest("[data-fvoir]");
+  if(fv){ const x = factures().find(y=>y.id===fv.dataset.fvoir); if(x) ouvrirSheet(factureHTML(x)); return; }
+
+  const fr = ev.target.closest("[data-frelance]");
+  if(fr){ const x = factures().find(y=>y.id===fr.dataset.frelance); if(x) ouvrirSheet(relancesHTML(x)); return; }
+
+  const fd = ev.target.closest("[data-fdel]");
+  if(fd){
+    const x = factures().find(y=>y.id===fd.dataset.fdel); if(!x) return;
+    demander("Supprimer cette facture ?",
+      `${esc(x.num)} · ${eur(x.montant)}. <b>Attention</b> : une numérotation doit rester continue. Ne supprime que si tu viens de la créer par erreur.`,
+      ()=>{ DATA.factures = factures().filter(y=>y.id!==x.id); sauver(true); render(); toast("Facture supprimée."); });
+    return;
+  }
+  const dd = ev.target.closest("[data-ddel]");
+  if(dd){ DATA.depenses = depenses().filter(y=>y.id!==dd.dataset.ddel); sauver(true); render(); return; }
+
+  const ct = ev.target.closest("[data-cptxt]");
+  if(ct){
+    const txt = ct.closest(".rel-b").querySelector("pre").textContent;
+    navigator.clipboard.writeText(txt).then(()=>{ ct.textContent="copié ✓"; setTimeout(()=>ct.textContent="copier",1500); })
+      .catch(()=>toast("Copie impossible — sélectionne le texte."));
+    return;
+  }
+});
+
+/* feuille imprimable */
+$("#sh-close").onclick = ()=>$("#sheet").classList.remove("on");
+$("#sh-print").onclick = ()=>{
+  document.body.classList.add("impr");
+  window.print();
+  setTimeout(()=>document.body.classList.remove("impr"), 300);
+};
+$("#sheet").addEventListener("click", e=>{ if(e.target.id==="sheet") $("#sheet").classList.remove("on"); });
+
+/* ---- saisie dans les fiches client ---- */
+document.addEventListener("input", ev=>{
+  const el = ev.target.closest("[data-cf]");
+  if(el){
+    const c = DATA.clients.find(x=>x.id===el.dataset.id); if(!c) return;
+    c[el.dataset.cf] = el.value;
+    sauver(); majCompteurs();
+    return;
+  }
+  if(ev.target.id==="r-vm"){ reglages().versionMaitre = ev.target.value; sauver(); majCompteurs(); return; }
+
+  const pf = ev.target.closest("[data-pf]");
+  if(pf){
+    const p = prospects().find(x=>x.id===pf.dataset.id); if(!p) return;
+    p[pf.dataset.pf] = ev.target.value;
+    sauver(); majCompteurs();
+    return;
+  }
+  const cl = ev.target.closest("[data-calc]");
+  if(cl){
+    reglages().calc[cl.dataset.calc] = ev.target.value;
+    sauver();
+    const out = document.getElementById("calc-out");
+    if(out) out.innerHTML = calcOutHTML();
+    return;
+  }
+  const em = ev.target.closest("[data-em]");
+  if(em){ emetteur()[em.dataset.em] = ev.target.value; sauver(); return; }
+  const fr2 = ev.target.closest("[data-fr]");
+  if(fr2){ fact()[fr2.dataset.fr] = ev.target.value; sauver(); majCompteurs(); return; }
+  const df = ev.target.closest("[data-df]");
+  if(df){
+    const d = depenses().find(x=>x.id===df.dataset.id); if(!d) return;
+    d[df.dataset.df] = ev.target.value; sauver(); majCompteurs(); return;
+  }
+});
+document.addEventListener("change", ev=>{
+  const el = ev.target.closest("select[data-cf]");
+  if(el){
+    const c = DATA.clients.find(x=>x.id===el.dataset.id); if(!c) return;
+    c[el.dataset.cf] = el.value; sauver(true); render();
+  }
+});
+
+CHAMPS.forEach(k=>{
+  const el=$(`[data-f="${k}"]`);
+  el.addEventListener("input", ()=>{
+    const d=actif(); if(!d){ el.value=""; return; }
+    let v = el.value;
+    if(k==="slug"){ v = v.toLowerCase().replace(/[^a-z0-9-]/g,""); el.value=v; }
+    d[k]=v;
+    sauver();
+    if(k==="nom"||k==="slug"||k==="fb"||k==="gh"){ renderJauge(); $("#vue").innerHTML=vueDeploiement(); renderPanneau(); }
+  });
+});
+$$("#etat button").forEach(b=>{ b.onclick=()=>{ const d=actif(); if(!d) return; d.etat=b.dataset.etat; sauver(true); render(); }; });
+$("#sel-dossier").onchange = e=>{ DATA.actif=e.target.value; sauver(true); render(); };
+
+function creer(){
+  const d = nouveauDossier();
+  if(DATA.posteOk) LOTS[0].etapes.forEach(e=>d.cases[e.id]=true);
+  DATA.dossiers.push(d); DATA.actif=d.id; sauver(true); render(); $("#f-nom").focus();
+  toast("Nouveau dossier créé.");
+}
+$("#b-new").onclick = creer;
+$("#b-vide").onclick = creer;
+
+$("#b-dup").onclick = ()=>{
+  const d=actif(); if(!d){ toast("Aucun dossier à dupliquer."); return; }
+  const c = nouveauDossier({ nom:(d.nom||"Sans nom")+" (copie)", gh:d.gh, ver:d.ver });
+  if(DATA.posteOk) LOTS[0].etapes.forEach(e=>c.cases[e.id]=true);
+  DATA.dossiers.push(c); DATA.actif=c.id; sauver(true); render();
+  toast("Dupliqué — cases remises à blanc.");
+};
+$("#b-reset").onclick = ()=>{
+  const d=actif(); if(!d){ toast("Aucun dossier."); return; }
+  demander("Décocher tout ce dossier ?","Toutes les cases repassent à blanc. La fiche est conservée.",()=>{
+    d.cases={}; d.etat="demo";
+    if(DATA.posteOk) LOTS[0].etapes.forEach(e=>d.cases[e.id]=true);
+    sauver(true); render(); toast("Dossier remis à zéro.");
+  });
+};
+$("#b-del").onclick = ()=>{
+  const d=actif(); if(!d){ toast("Aucun dossier."); return; }
+  demander("Supprimer ce dossier ?",`« ${esc(d.nom||"Sans nom")} » disparaît de la console. <b>Ça n'efface rien sur Firebase ni sur GitHub</b> — juste ta fiche de suivi.`,()=>{
+    DATA.dossiers = DATA.dossiers.filter(x=>x.id!==d.id);
+    DATA.actif = DATA.dossiers.length ? DATA.dossiers[0].id : null;
+    sauver(true); render(); toast("Dossier supprimé.");
+  });
+};
+$("#b-once").onclick = ()=>{
+  DATA.posteOk = !DATA.posteOk;
+  const d=actif(); if(d){ if(!d.cases) d.cases={}; LOTS[0].etapes.forEach(e=>{ d.cases[e.id]=DATA.posteOk; }); }
+  sauver(true); render();
+  toast(DATA.posteOk ? "Lot 0 coché : ton poste est prêt." : "Lot 0 décoché.");
+};
+$("#b-print").onclick = ()=>window.print();
+
+$("#b-export").onclick = ()=>{
+  const blob = new Blob([JSON.stringify(DATA,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="massilia-console-"+new Date().toISOString().slice(0,10)+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+  toast("Sauvegarde téléchargée.");
+};
+$("#b-import").onclick = ()=>$("#f-file").click();
+$("#f-file").onchange = ev=>{
+  const f=ev.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const o=JSON.parse(r.result);
+      if(!o || !Array.isArray(o.dossiers)) throw new Error("format");
+      demander("Restaurer cette sauvegarde ?",`Elle contient <b>${o.dossiers.length}</b> dossier(s). Ça remplace ce qu'il y a dans la console.`,()=>{
+        DATA = normalise(o); if(!DATA.actif && DATA.dossiers.length) DATA.actif = DATA.dossiers[0].id;
+        sauver(true); render(); toast("Sauvegarde restaurée.");
+      });
+    }catch(e){ toast("Fichier illisible — ce n'est pas une sauvegarde de la console."); }
+    ev.target.value="";
+  };
+  r.readAsText(f);
+};
+
+/* =========================================================
+   CONNEXION
+   ========================================================= */
+function gateErr(m){ $("#gate-err").textContent = m||""; }
+
+$("#b-google").onclick = ()=>{
+  gateErr("");
+  const p = new firebase.auth.GoogleAuthProvider();
+  p.setCustomParameters({ prompt:"select_account" });
+  const mob = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(mob) firebase.auth().signInWithRedirect(p).catch(e=>gateErr(msgAuth(e)));
+  else firebase.auth().signInWithPopup(p).catch(e=>gateErr(msgAuth(e)));
+};
+$("#b-out").onclick = ()=>firebase.auth().signOut();
+
+function msgAuth(e){
+  const c=(e&&e.code)||"";
+  if(c.indexOf("unauthorized-domain")>=0) return "Ce domaine n'est pas autorisé dans Firebase → Authentication → Settings → Domaines autorisés.";
+  if(c.indexOf("popup-closed")>=0) return "Fenêtre fermée avant la fin.";
+  if(c.indexOf("operation-not-allowed")>=0) return "Le fournisseur Google n'est pas activé dans Firebase → Authentication.";
+  return (e&&e.message)||"Connexion impossible.";
+}
+
+function entrer(u){
+  USER = u;
+  $("#gate").classList.add("hide");
+  $("#app").classList.remove("hide");
+  $("#h-mail").textContent = u.email;
+  $("#foot-ver").textContent = CONSOLE_VERSION;
+  LIGNE = true;
+  sync(false);
+
+  ref().on("value", s=>{
+    if(SILENCE) return;
+    const v = s.val();
+    if(v && Array.isArray(v.dossiers)){
+      DATA = normalise(v);
+      if(!actif() && DATA.dossiers.length) DATA.actif = DATA.dossiers[0].id;
+      cacheEcrire(CLE_CACHE, DATA);
+      sync(true); render();
+    } else {
+      migrer();
+    }
+  }, e=>{
+    LIGNE=false; sync(false);
+    toast("Lecture refusée : les règles de la base ne sont pas publiées ?");
+  });
+}
+
+/* Première connexion : on récupère ce qui existait dans le navigateur */
+function migrer(){
+  const anciens = cacheLire(CLE_LOCAL, null) || cacheLire(CLE_CACHE, null);
+  if(anciens && Array.isArray(anciens.dossiers) && anciens.dossiers.length){
+    demander("Reprendre tes dossiers locaux ?",
+      `La console est vide en ligne, mais ce navigateur contient <b>${anciens.dossiers.length}</b> dossier(s). On les envoie dans la base ?`,
+      ()=>{ DATA = normalise(anciens); if(!DATA.actif) DATA.actif = DATA.dossiers[0].id;
+            sauver(true); render(); toast("Dossiers repris et synchronisés ✅"); });
+    setTimeout(()=>{ sync(true); render(); }, 50);
+    return;
+  }
+  const d = nouveauDossier({ nom:"Premier déploiement", ver:"v195 · 13/07" });
+  DATA = normalise({ dossiers:[d], actif:d.id });
+  sauver(true); sync(true); render();
+}
+
+/* =========================================================
+   DÉMARRAGE
+   ========================================================= */
+(function boot(){
+  const l = LOTS.find(x=>faitesLot(x) < x.etapes.length) || LOTS[0];
+  OUVERT[l.n] = true;
+  $("#foot-ver").textContent = CONSOLE_VERSION;
+
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firebase.auth().getRedirectResult().catch(e=>gateErr(msgAuth(e)));
+    firebase.auth().onAuthStateChanged(u=>{
+      if(!u){ $("#gate").classList.remove("hide"); $("#app").classList.add("hide"); return; }
+      if((u.email||"").toLowerCase() !== ADMIN_EMAIL.toLowerCase()){
+        gateErr("Ce compte n'est pas autorisé sur cette console.");
+        firebase.auth().signOut();
+        return;
+      }
+      entrer(u);
+    });
+  }catch(e){
+    gateErr("Firebase n'a pas pu démarrer : "+(e.message||e));
+  }
+})();
+</script>
+</body>
+</html>
