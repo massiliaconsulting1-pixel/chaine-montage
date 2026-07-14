@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Chaîne de montage BatiSuivi — déploiement d'une app client</title>
+<meta name="description" content="Console interne Massilia Consulting : dérouler un déploiement BatiSuivi de A à Z, lot par lot, et repartir à zéro pour la démo suivante.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1F3247">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===================================================================
+   BatiSuivi — Chaîne de montage (console de déploiement)
+   Massilia Consulting · usage interne
+   Tout tient dans ce fichier. Aucune donnée ne sort du navigateur.
+   =================================================================== */
+:root{
+  --beton:#E7E9EB;      /* fond : béton clair */
+  --beton2:#F5F6F7;     /* cartes */
+  --ink:#101418;        /* texte */
+  --ink2:#5C6672;       /* texte secondaire */
+  --line:#CBD1D6;       /* traits */
+  --acier:#1F3247;      /* bandeaux, panneau */
+  --acier2:#2C4460;
+  --jaune:#F5B301;      /* en cours */
+  --vert:#12855C;       /* validé */
+  --rouge:#B23A2E;      /* danger */
+  --r:4px;
+  --dis:'Archivo','Arial Narrow',Helvetica,sans-serif;
+  --bod:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --mon:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--beton);
+  color:var(--ink);
+  font-family:var(--bod);
+  font-size:15px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:80px;
+}
+a{color:var(--acier)}
+button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;font-size:15px}
+
+/* ---------- bandeau ---------- */
+header{
+  background:var(--acier);color:#fff;
+  border-bottom:5px solid var(--jaune);
+  padding:22px 20px 0;
+  position:relative;
+}
+.wrap{max-width:1180px;margin:0 auto}
+.eyebrow{
+  font-family:var(--mon);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:#93A6BB;margin-bottom:6px;
+}
+h1{
+  font-family:var(--dis);font-weight:800;font-size:clamp(26px,4.2vw,42px);
+  line-height:1.02;letter-spacing:-.02em;text-transform:uppercase;
+}
+h1 em{font-style:normal;color:var(--jaune)}
+.sub{color:#B7C4D2;max-width:62ch;margin-top:8px;font-size:14px}
+
+/* ---------- la jauge de chantier (élément signature) ---------- */
+.jauge{margin:20px 0 0;padding-bottom:18px}
+.jauge-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:7px;flex-wrap:wrap}
+.jauge-pct{font-family:var(--dis);font-weight:800;font-size:30px;line-height:1;letter-spacing:-.02em}
+.jauge-pct small{font-size:13px;font-weight:600;color:#93A6BB;margin-left:8px;letter-spacing:0}
+.jauge-time{font-family:var(--mon);font-size:12px;color:#B7C4D2;text-align:right}
+.jauge-time b{color:var(--jaune)}
+.bandes{display:flex;gap:3px;height:16px}
+.bande{
+  flex:1;background:#33465C;position:relative;overflow:hidden;border-radius:1px;
+  cursor:pointer;
+}
+.bande i{
+  position:absolute;inset:0 auto 0 0;width:0%;background:var(--jaune);
+  transition:width .45s cubic-bezier(.2,.7,.2,1);
+}
+.bande.full i{background:var(--vert)}
+.bande:hover{outline:2px solid var(--jaune);outline-offset:1px}
+.bande-lbl{
+  display:flex;gap:3px;margin-top:5px;
+}
+.bande-lbl span{
+  flex:1;text-align:center;font-family:var(--mon);font-size:10px;color:#6E829A;
+}
+
+/* ---------- corps ---------- */
+main{max-width:1180px;margin:0 auto;padding:26px 20px;display:grid;grid-template-columns:330px 1fr;gap:26px;align-items:start}
+@media(max-width:900px){main{grid-template-columns:1fr;padding:18px 14px}}
+
+/* ---------- panneau dossier ---------- */
+.panneau{position:sticky;top:16px}
+@media(max-width:900px){.panneau{position:static}}
+.card{
+  background:var(--beton2);border:1px solid var(--line);border-radius:var(--r);
+  padding:16px;margin-bottom:14px;
+}
+.card h2{
+  font-family:var(--dis);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink2);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;
+}
+label{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin:10px 0 3px}
+input[type=text],select,textarea{
+  width:100%;background:#fff;border:1px solid var(--line);border-radius:var(--r);
+  padding:8px 10px;color:var(--ink);
+}
+input[type=text]:focus,select:focus,textarea:focus{outline:2px solid var(--acier);outline-offset:0;border-color:var(--acier)}
+textarea{resize:vertical;min-height:60px}
+.hint{font-size:12px;color:var(--ink2);margin-top:4px}
+.mono{font-family:var(--mon)}
+
+.dossier-sel{display:flex;gap:6px;margin-bottom:12px}
+.dossier-sel select{flex:1}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:9px 12px;border-radius:var(--r);font-weight:600;font-size:13px;
+  border:1px solid var(--line);background:#fff;transition:.12s;
+}
+.btn:hover{border-color:var(--acier)}
+.btn:focus-visible{outline:2px solid var(--jaune);outline-offset:2px}
+.btn.plein{background:var(--acier);color:#fff;border-color:var(--acier)}
+.btn.plein:hover{background:var(--acier2)}
+.btn.danger{color:var(--rouge);border-color:#E3BDB8}
+.btn.danger:hover{background:var(--rouge);color:#fff;border-color:var(--rouge)}
+.btn.full{width:100%}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+
+.etat{display:flex;gap:6px;margin-top:4px}
+.etat button{
+  flex:1;padding:7px;border:1px solid var(--line);background:#fff;border-radius:var(--r);
+  font-size:12px;font-weight:600;color:var(--ink2);
+}
+.etat button[aria-pressed=true]{background:var(--acier);color:#fff;border-color:var(--acier)}
+
+/* ---------- lots ---------- */
+.lot{
+  background:var(--beton2);border:1px solid var(--line);border-radius:var(--r);
+  margin-bottom:14px;overflow:hidden;
+}
+.lot-head{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+  padding:14px 16px;background:#fff;border-bottom:1px solid var(--line);
+}
+.lot-head:hover{background:#FBFBFC}
+.lot-num{
+  font-family:var(--dis);font-weight:800;font-size:19px;line-height:1;
+  min-width:42px;height:42px;display:flex;align-items:center;justify-content:center;
+  background:var(--acier);color:#fff;border-radius:var(--r);flex:0 0 auto;
+  transition:.2s;
+}
+.lot.fait .lot-num{background:var(--vert)}
+.lot.encours .lot-num{background:var(--jaune);color:var(--ink)}
+.lot-t{flex:1;min-width:0}
+.lot-t h3{font-family:var(--dis);font-weight:700;font-size:16px;letter-spacing:-.01em}
+.lot-t p{font-size:12.5px;color:var(--ink2)}
+.lot-meta{text-align:right;flex:0 0 auto;font-family:var(--mon);font-size:11px;color:var(--ink2);line-height:1.5}
+.lot-meta b{display:block;color:var(--ink);font-size:13px}
+.chev{flex:0 0 auto;color:var(--ink2);transition:transform .2s}
+.lot[open] .chev,.lot.ouvert .chev{transform:rotate(90deg)}
+.lot-body{padding:6px 16px 16px;display:none}
+.lot.ouvert .lot-body{display:block}
+
+/* ---------- étapes ---------- */
+.etape{display:flex;gap:12px;padding:13px 0;border-bottom:1px dashed var(--line)}
+.etape:last-child{border-bottom:none}
+.box{
+  flex:0 0 auto;width:26px;height:26px;border:2px solid var(--ink2);border-radius:3px;
+  background:#fff;position:relative;margin-top:1px;transition:.12s;
+}
+.box:hover{border-color:var(--acier)}
+.box:focus-visible{outline:2px solid var(--jaune);outline-offset:2px}
+.box[aria-checked=true]{background:var(--vert);border-color:var(--vert)}
+.box[aria-checked=true]::after{
+  content:"";position:absolute;left:7px;top:2px;width:7px;height:13px;
+  border:solid #fff;border-width:0 3px 3px 0;transform:rotate(42deg);
+}
+.etape-c{flex:1;min-width:0}
+.etape-t{font-weight:600;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.etape.done .etape-t{color:var(--ink2);text-decoration:line-through;text-decoration-color:var(--line)}
+.tag{
+  font-family:var(--mon);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 6px;border-radius:2px;font-weight:600;white-space:nowrap;
+}
+.tag.crit{background:#FBE3E0;color:var(--rouge)}
+.tag.opt{background:#E4E8EB;color:var(--ink2)}
+.tag.once{background:#DDEDE6;color:var(--vert)}
+.etape-d{font-size:13.5px;color:var(--ink2);margin-top:3px}
+.etape-d b{color:var(--ink)}
+.piege{
+  margin-top:7px;padding:8px 10px;background:#FFF6E0;border-left:3px solid var(--jaune);
+  font-size:13px;border-radius:0 var(--r) var(--r) 0;
+}
+.piege b{font-family:var(--dis);text-transform:uppercase;font-size:11px;letter-spacing:.08em}
+
+/* ---------- blocs à copier ---------- */
+.code{
+  margin-top:8px;background:var(--acier);border-radius:var(--r);position:relative;
+}
+.code pre{
+  font-family:var(--mon);font-size:12.5px;color:#DCE6F0;padding:11px 46px 11px 12px;
+  overflow-x:auto;white-space:pre;line-height:1.6;
+}
+.code .cp{
+  position:absolute;top:6px;right:6px;background:#33465C;color:#DCE6F0;
+  border-radius:3px;padding:4px 8px;font-size:11px;font-weight:600;font-family:var(--mon);
+}
+.code .cp:hover{background:var(--jaune);color:var(--ink)}
+.code .cp.ok{background:var(--vert);color:#fff}
+
+/* ---------- PV de livraison ---------- */
+.pv{
+  background:var(--acier);color:#fff;border-radius:var(--r);padding:20px;border:1px solid var(--acier);
+}
+.pv.pret{border:2px solid var(--jaune)}
+.pv h2{font-family:var(--dis);font-weight:800;font-size:18px;text-transform:uppercase;letter-spacing:-.01em;color:#fff;margin-bottom:8px}
+.pv p{font-size:13.5px;color:#B7C4D2}
+.pv .rest{margin-top:12px;font-size:13px}
+.pv .rest li{margin-left:18px;color:#DCE6F0}
+.pv .btn{margin-top:14px}
+.sceau{
+  display:inline-block;margin-top:12px;border:2px solid var(--jaune);color:var(--jaune);
+  font-family:var(--dis);font-weight:800;text-transform:uppercase;letter-spacing:.08em;
+  padding:8px 14px;transform:rotate(-1.5deg);font-size:14px;
+}
+
+/* ---------- divers ---------- */
+.avert{
+  background:#FFF6E0;border:1px solid #E8CE84;border-left:5px solid var(--jaune);
+  border-radius:var(--r);padding:12px 14px;margin-bottom:14px;font-size:13.5px;
+}
+.avert b{font-family:var(--dis);text-transform:uppercase;font-size:11.5px;letter-spacing:.08em;display:block;margin-bottom:3px}
+.toast{
+  position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);
+  background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--r);
+  font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.22s;z-index:60;
+  box-shadow:0 8px 24px rgba(16,20,24,.25);
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.modal{
+  position:fixed;inset:0;background:rgba(16,20,24,.55);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:70;
+}
+.modal.on{display:flex}
+.modal-c{background:var(--beton2);border-radius:var(--r);max-width:440px;width:100%;padding:22px;border-top:5px solid var(--rouge)}
+.modal-c h3{font-family:var(--dis);font-weight:800;text-transform:uppercase;font-size:17px;margin-bottom:8px}
+.modal-c p{font-size:14px;color:var(--ink2);margin-bottom:14px}
+footer{
+  max-width:1180px;margin:10px auto 0;padding:18px 20px 0;border-top:1px solid var(--line);
+  font-size:12px;color:var(--ink2);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+}
+@media print{
+  header{background:#fff;color:#000;border-bottom:2px solid #000}
+  .jauge,.panneau .btn,.btn-row,.dossier-sel,footer .noprint,.chev{display:none!important}
+  .lot-body{display:block!important}
+  main{display:block}
+  .code pre{color:#000;background:#eee}
+  .code{background:#eee}
+  body{background:#fff}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="eyebrow">Massilia Consulting · usage interne</p>
+    <h1>La chaîne de <em>montage</em></h1>
+    <p class="sub">Déployer une app BatiSuivi de zéro jusqu'à la livraison, sans rien oublier. Un dossier par artisan, coché lot par lot. Après la démo, on remet le compteur à zéro et on recommence.</p>
+
+    <div class="jauge">
+      <div class="jauge-top">
+        <div>
+          <span class="jauge-pct" id="pct">0 %</span>
+          <small id="compte">0 / 0 étapes</small>
+        </div>
+        <div class="jauge-time">Reste à faire : <b id="reste">—</b><br><span id="dossier-nom">Aucun dossier</span></div>
+      </div>
+      <div class="bandes" id="bandes"></div>
+      <div class="bande-lbl" id="bandes-lbl"></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ============ PANNEAU DOSSIER ============ -->
+  <aside class="panneau">
+    <div class="card">
+      <h2>Dossier en cours</h2>
+      <div class="dossier-sel">
+        <select id="sel-dossier" aria-label="Choisir un dossier"></select>
+        <button class="btn" id="b-new" title="Nouveau dossier">+</button>
+      </div>
+
+      <label for="f-nom">Artisan / client</label>
+      <input type="text" id="f-nom" data-f="nom" placeholder="Menuiserie Dupont" autocomplete="off">
+
+      <label for="f-slug">Identifiant court (sans espace)</label>
+      <input type="text" id="f-slug" data-f="slug" class="mono" placeholder="dupont" autocomplete="off">
+      <p class="hint">Sert partout : <span class="mono">batisuivi-dupont</span> (Firebase) et le dépôt GitHub.</p>
+
+      <label for="f-fb">ID du projet Firebase</label>
+      <input type="text" id="f-fb" data-f="fb" class="mono" placeholder="batisuivi-dupont" autocomplete="off">
+
+      <label for="f-gh">Compte GitHub</label>
+      <input type="text" id="f-gh" data-f="gh" class="mono" placeholder="massiliaconsulting1-pixel" autocomplete="off">
+
+      <label for="f-url">Adresse de l'app</label>
+      <input type="text" id="f-url" data-f="url" class="mono" placeholder="https://…" autocomplete="off">
+
+      <label for="f-dom">Nom de domaine (si Premium)</label>
+      <input type="text" id="f-dom" data-f="dom" class="mono" placeholder="app.menuiserie-dupont.fr" autocomplete="off">
+
+      <label for="f-ver">Version installée</label>
+      <input type="text" id="f-ver" data-f="ver" class="mono" placeholder="v195 · 13/07" autocomplete="off">
+
+      <label>État</label>
+      <div class="etat" id="etat">
+        <button data-etat="demo">Démo</button>
+        <button data-etat="vendu">Vendu</button>
+        <button data-etat="livre">Livré</button>
+      </div>
+
+      <label for="f-notes">Notes</label>
+      <textarea id="f-notes" data-f="notes" placeholder="Ce qui reste, ce qu'il a demandé…"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>Repartir à zéro</h2>
+      <button class="btn full plein" id="b-reset">Décocher tout ce dossier</button>
+      <p class="hint">Remet les cases à blanc, garde la fiche (nom, adresses, notes).</p>
+      <div class="btn-row">
+        <button class="btn" id="b-dup">Dupliquer</button>
+        <button class="btn" id="b-vide">Nouveau vierge</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="b-export">Sauvegarder</button>
+        <button class="btn" id="b-import">Restaurer</button>
+      </div>
+      <input type="file" id="f-file" accept="application/json,.json" hidden>
+      <button class="btn full danger" id="b-del" style="margin-top:6px">Supprimer ce dossier</button>
+    </div>
+
+    <div class="card">
+      <h2>Poste de travail</h2>
+      <button class="btn full" id="b-once" aria-pressed="false">Mon poste est déjà prêt</button>
+      <p class="hint">Coche d'un coup le lot 0 (comptes, outils, clés) — à ne faire qu'une fois sur ton ordinateur.</p>
+      <button class="btn full" id="b-print" style="margin-top:8px">Imprimer / PDF</button>
+    </div>
+  </aside>
+
+  <!-- ============ LOTS ============ -->
+  <section>
+    <div class="avert">
+      <b>À lire une fois</b>
+      Ce site est <b>public</b> une fois sur GitHub Pages : n'y écris jamais une clé API, un mot de passe ni ton code dev. En revanche, tes dossiers (noms, adresses, cases cochées) <b>restent dans ton navigateur</b> — ils ne partent nulle part. Change d'ordinateur ⇒ passe par « Sauvegarder / Restaurer ».
+    </div>
+
+    <div id="lots"></div>
+
+    <div class="pv" id="pv">
+      <h2>PV de livraison</h2>
+      <p id="pv-txt">Termine les étapes marquées « critique » pour débloquer la livraison.</p>
+      <div class="rest" id="pv-rest"></div>
+      <button class="btn plein" id="b-pv" hidden>Marquer ce dossier « Livré »</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>BatiSuivi · chaîne de montage v1.0 — appui du fichier maître <span class="mono" id="foot-ver">v195</span></span>
+  <span class="noprint">Tout est enregistré automatiquement dans ce navigateur.</span>
+</footer>
+
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true">
+  <div class="modal-c">
+    <h3 id="mo-t">Confirmer</h3>
+    <p id="mo-p"></p>
+    <div class="btn-row">
+      <button class="btn" id="mo-non">Annuler</button>
+      <button class="btn danger" id="mo-oui">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================================================================
+   1) LE CONTENU : les lots et leurs étapes
+   crit = étape critique (bloque la livraison)
+   opt  = facultative (ne compte pas dans le "reste à faire" critique)
+   min  = temps estimé en minutes
+   =================================================================== */
+const LOTS = [
+{ n:"0", titre:"Le poste de travail", ssTitre:"À faire une seule fois sur ton ordinateur", once:true, etapes:[
+  {id:"0a",min:5,t:"Compte GitHub + compte Google (Firebase)",d:"Les deux sont gratuits. Le compte GitHub héberge les apps, le compte Google héberge les bases."},
+  {id:"0b",min:5,t:"Node.js et l'outil Firebase installés",d:"Dans le terminal (PowerShell), une seule fois.",code:"npm install -g firebase-tools\nfirebase login"},
+  {id:"0c",min:2,t:"Le dossier maître sous la main",d:"Le dossier qui contient <b>index.html</b> (l'app), <b>sw.js</b>, et le sous-dossier <b>functions/</b> (index.js, package.json). C'est le moule : on ne le modifie jamais pour un client en particulier."},
+  {id:"0d",min:3,t:"Les clés IA prêtes",d:"La clé Anthropic (console.anthropic.com) et la clé Google Gemini (aistudio.google.com, facturation activée). Elles ne vont <b>jamais</b> dans le code : uniquement dans les secrets Firebase, lot 2."},
+]},
+
+{ n:"1", titre:"La mémoire du client", ssTitre:"Créer le projet Firebase", etapes:[
+  {id:"1a",crit:1,min:3,t:"Créer le projet Firebase",d:"console.firebase.google.com → Ajouter un projet → nom <span class='mono'>batisuivi-{SLUG}</span>. Note l'<b>ID exact</b> du projet (Google ajoute parfois un suffixe) et reporte-le dans la fiche à gauche."},
+  {id:"1b",crit:1,min:2,t:"Passer au plan Blaze + poser un budget",d:"Sans le plan Blaze, <b>les Cloud Functions ne se déploient pas</b>. Dans la foulée : Google Cloud → Facturation → Budgets → alerte à 10 €. Tu ne découvriras jamais la facture trop tard."},
+  {id:"1c",crit:1,min:2,t:"Realtime Database → région europe-west1 → mode verrouillé",d:"La région doit être <b>la même que celle des fonctions</b> (europe-west1), sinon rien ne se parle. « Mode verrouillé » = base fermée dès le départ, c'est ce qu'on veut.",piege:"Impossible de changer la région après coup. Si tu te trompes : nouveau projet."},
+  {id:"1d",crit:1,min:1,t:"Authentication → activer E-mail/mot de passe et Google",d:"C'est la connexion de l'équipe. Le client final, lui, n'a jamais de compte (code chantier + nom)."},
+  {id:"1e",crit:1,min:2,t:"Ajouter une app Web et copier la config",d:"Roue crantée → Paramètres du projet → Vos applications → icône <span class='mono'>&lt;/&gt;</span> → copier le bloc (apiKey, databaseURL, projectId…). Garde-le dans un bloc-notes, il sert au lot 5.",piege:"La clé apiKey n'est pas un secret : Google la conçoit pour être visible dans le code. Ce qui protège vraiment, ce sont les règles (lot 4)."},
+]},
+
+{ n:"2", titre:"Les secrets", ssTitre:"AVANT de déployer les fonctions — sinon échec", etapes:[
+  {id:"2a",crit:1,min:2,t:"Créer le secret ANTHROPIC_API_KEY",d:"Dans le terminal, depuis le dossier maître. Il te demande la clé, tu la colles, entrée.",code:"firebase functions:secrets:set ANTHROPIC_API_KEY --project {FB}",piege:"C'est LE piège numéro un. Si le secret n'existe pas avant, le déploiement des fonctions échoue et tu perds 20 minutes à chercher pourquoi."},
+  {id:"2b",crit:1,min:1,t:"Créer le secret GEMINI_API_KEY",d:"Utilisé par la projection IA (transformation de photos). Même commande.",code:"firebase functions:secrets:set GEMINI_API_KEY --project {FB}"},
+  {id:"2c",opt:1,min:2,t:"Secrets facturation électronique (si le client la veut)",d:"Uniquement si tu actives la passerelle BCSolutions pour cet artisan.",code:"firebase functions:secrets:set BCS_CLIENT_ID --project {FB}\nfirebase functions:secrets:set BCS_CLIENT_SECRET --project {FB}"},
+  {id:"2d",min:1,t:"Vérifier la liste des secrets",d:"Tu dois voir tes secrets listés avant de passer au lot 3.",code:"firebase functions:secrets:access ANTHROPIC_API_KEY --project {FB}"},
+]},
+
+{ n:"3", titre:"Le cerveau", ssTitre:"Déployer les Cloud Functions", etapes:[
+  {id:"3a",crit:1,min:1,t:"Pointer le terminal sur le bon projet",d:"Depuis le dossier maître. Choisis le projet du client et donne-lui un alias (son nom court).",code:"firebase use --add"},
+  {id:"3b",crit:1,min:5,t:"Déployer les fonctions",d:"Ça prend 3 à 6 minutes. Laisse tourner jusqu'au message <span class='mono'>Deploy complete!</span>",code:"firebase deploy --only functions --project {FB}"},
+  {id:"3c",crit:1,min:2,t:"Vérifier les 8 fonctions en europe-west1",d:"Console Firebase → Functions. Tu dois voir : <b>accesClient</b>, <b>structurerCompteRendu</b>, <b>assistantBatiSuivi</b>, <b>iaUsage</b>, <b>lireTicket</b>, <b>devisPhoto</b>, <b>projectionIA</b>, <b>passerellePA</b>. Toutes en europe-west1."},
+  {id:"3d",opt:1,min:3,t:"Si une fonction répond 403 en 0 ms",d:"Elle est rejetée avant même d'exécuter son code : ses droits d'appel sont cassés. Le remède est toujours le même : <b>supprimer la fonction puis la redéployer</b>.",code:"firebase functions:delete NOM_DE_LA_FONCTION --region europe-west1 --project {FB}\nfirebase deploy --only functions --project {FB}"},
+]},
+
+{ n:"4", titre:"Le cadenas", ssTitre:"Les règles de sécurité — jamais négociable", etapes:[
+  {id:"4a",crit:1,min:2,t:"Coller les règles et publier",d:"Firebase → Realtime Database → onglet <b>Règles</b> → tout remplacer par ce bloc → <b>Publier</b>. Texte identique pour chaque client.",code:'{\n  "rules": {\n    "batisuivi": {\n\n      "config": {\n        ".read": true,\n        ".write": "auth != null"\n      },\n\n      "invites": {\n        ".read": "auth != null",\n        ".write": "auth != null",\n        "$code": {\n          ".read": true\n        }\n      },\n\n      "chantiers": {\n        ".read": "auth != null",\n        ".write": "auth != null"\n      },\n\n      "team":       { ".read": "auth != null", ".write": "auth != null" },\n      "vehicules":  { ".read": "auth != null", ".write": "auth != null" },\n      "planning":   { ".read": "auth != null", ".write": "auth != null" },\n      "notesfrais": { ".read": "auth != null", ".write": "auth != null" },\n      "chat":       { ".read": "auth != null", ".write": "auth != null" }\n\n    }\n  }\n}',piege:"Tout ce qui n'est pas écrit ici est fermé par défaut — y compris la branche privée des identifiants de facturation. Ne rajoute jamais \u00ab .read: true \u00bb ailleurs que sur config."},
+  {id:"4b",crit:1,min:1,t:"Prouver que la base est bien fermée",d:"Ouvre dans le navigateur l'adresse de la base suivie de <span class='mono'>/.json</span>. Tu dois lire <b>Permission denied</b>. Si tu vois des données : les règles ne sont pas publiées, recommence.",code:"https://{FB}-default-rtdb.europe-west1.firebasedatabase.app/.json"},
+  {id:"4c",min:1,t:"Ne jamais activer la connexion anonyme",d:"Ni maintenant, ni plus tard, ni « juste pour tester ». L'accès client passe uniquement par la fonction <b>accesClient</b>."},
+]},
+
+{ n:"5", titre:"Brancher l'app", ssTitre:"La seule ligne de code qui change d'un client à l'autre", etapes:[
+  {id:"5a",crit:1,min:1,t:"Copier le fichier maître dans un dossier client",d:"Ne travaille jamais dans le maître. Copie <b>index.html</b> et <b>sw.js</b> dans un dossier au nom du client."},
+  {id:"5b",crit:1,min:2,t:"Remplacer le bloc FIREBASE_CONFIG",d:"Ouvre la copie d'index.html dans un éditeur de texte, tout en haut (vers la ligne 44). Remplace les 7 valeurs par celles copiées au lot 1. C'est <b>la seule</b> modification de code par client.",code:'const FIREBASE_CONFIG = {\n  apiKey: "…",\n  authDomain: "{FB}.firebaseapp.com",\n  databaseURL: "https://{FB}-default-rtdb.europe-west1.firebasedatabase.app",\n  projectId: "{FB}",\n  storageBucket: "{FB}.firebasestorage.app",\n  messagingSenderId: "…",\n  appId: "…"\n};'},
+  {id:"5c",crit:1,min:1,t:"Vérifier qu'aucune trace de l'ancien projet ne reste",d:"Cette commande ne doit <b>rien</b> afficher. Si elle affiche des lignes, une valeur de l'ancien client est restée.",code:'grep -n "90a71\\|108439166886" index.html'},
+  {id:"5d",min:1,t:"Ne toucher à rien d'autre",d:"Nom, logo, couleurs, TVA, préfixes : tout ça se règle dans l'espace dev (lot 8), pas dans le code. C'est ce qui te permet de mettre à jour tous les clients avec un seul fichier."},
+]},
+
+{ n:"6", titre:"Mise en ligne", ssTitre:"GitHub Pages", etapes:[
+  {id:"6a",crit:1,min:2,t:"Créer le dépôt GitHub",d:"github.com → New repository → nom <span class='mono'>batisuivi-{SLUG}</span> → Public → Create."},
+  {id:"6b",crit:1,min:2,t:"Déposer les fichiers",d:"Add file → Upload files → glisse <b>index.html</b> et <b>sw.js</b> → Commit changes."},
+  {id:"6c",crit:1,min:2,t:"Activer GitHub Pages",d:"Settings → Pages → Source : <b>Deploy from a branch</b> → branche <b>main</b>, dossier <b>/ (root)</b> → Save. Compte 1 à 2 minutes avant que l'adresse réponde.",code:"https://{GH}.github.io/batisuivi-{SLUG}/"},
+  {id:"6d",crit:1,min:1,t:"Autoriser ce domaine dans Firebase",d:"Firebase → Authentication → Settings → <b>Domaines autorisés</b> → ajouter <span class='mono'>{GH}.github.io</span>.",piege:"Oubli classique : sans ça, la connexion Google de l'équipe échoue sans message clair."},
+  {id:"6e",crit:1,min:1,t:"Ouvrir l'adresse : l'app se lance",d:"Écran d'accueil BatiSuivi, pas de page blanche. Reporte l'adresse dans la fiche à gauche."},
+]},
+
+{ n:"7", titre:"Le nom de domaine", ssTitre:"Option — palier Premium", opt:true, etapes:[
+  {id:"7a",opt:1,min:5,t:"Acheter le domaine",d:"OVH, Gandi, Namecheap… 8 à 15 €/an. <b>Au nom du client</b> si c'est le nom de sa société : c'est plus sain et ça évite les litiges. Tu le gères techniquement, il en est propriétaire."},
+  {id:"7b",opt:1,min:3,t:"Créer le CNAME dans la zone DNS",d:"Sous-domaine <span class='mono'>app</span> → pointe vers <span class='mono'>{GH}.github.io</span>. Type d'enregistrement : CNAME.",code:"app    CNAME    {GH}.github.io."},
+  {id:"7c",opt:1,min:2,t:"Déclarer le domaine sur GitHub + HTTPS",d:"Dépôt → Settings → Pages → <b>Custom domain</b> → saisir l'adresse → Save → cocher <b>Enforce HTTPS</b> (certificat gratuit, automatique)."},
+  {id:"7d",opt:1,min:1,t:"Autoriser le domaine dans Firebase",d:"Authentication → Settings → Domaines autorisés → ajouter le domaine. Sinon la connexion Google casse sur la nouvelle adresse."},
+  {id:"7e",opt:1,min:5,t:"Attendre la propagation et retester",d:"De quelques minutes à quelques heures. Retest complet : connexion équipe + accès client."},
+]},
+
+{ n:"8", titre:"L'habillage", ssTitre:"Espace dev — zéro ligne de code", etapes:[
+  {id:"8a",crit:1,min:1,t:"Entrer dans l'espace dev",d:"Ouvre l'app → tape ton code dev (en bas de l'écran d'accueil). Réservé à ton adresse e-mail : personne d'autre n'y entre."},
+  {id:"8b",crit:1,min:4,t:"Identité de l'artisan",d:"Nom, logo (avec recadrage), slogan, couleur, coordonnées, SIREN, régime de TVA, assurance. C'est ce qui fait « son » appli."},
+  {id:"8c",min:3,t:"Réglages métier",d:"Pointage on/off, taux horaire, préfixes et numéros de départ devis/factures, rôles et permissions, étapes d'avancement, modèles de chantier."},
+  {id:"8d",min:1,t:"Appliquer un pack de réglages",d:"Espace dev → Pack de réglages → Appliquer un pack exporté d'un autre client. Ça copie les étapes, rôles, TVA, modèles… <b>jamais l'identité</b> (nom, logo, SIREN, IBAN restent vierges)."},
+  {id:"8e",crit:1,min:1,t:"Choisir le palier d'abonnement",d:"Basique ou Premium, dans le panneau d'accès dev. Le Premium débloque notamment le centre de notifications."},
+]},
+
+{ n:"9", titre:"La démo du RDV", ssTitre:"Arriver avec une appli vivante", etapes:[
+  {id:"9a",crit:1,min:2,t:"Charger la démo au bon métier",d:"Espace dev → sélectionne le métier de l'artisan (menuisier, plombier, maçon…) → <b>Charger la démo</b>. 4 chantiers par métier, à des étapes différentes, avec équipe, photos, messages."},
+  {id:"9b",crit:1,min:3,t:"Répéter le parcours client",d:"Ouvre l'app en navigation privée → entre un code chantier + un nom → tu dois voir l'avancement, les photos, signer un devis, envoyer un message. <b>C'est ton argument de vente n°1</b> : répète-le jusqu'à le faire les yeux fermés."},
+  {id:"9c",min:2,t:"Tester l'IA",d:"Dictée vocale d'un compte-rendu (elle doit ressortir structurée en 4 blocs) + une question à l'assistant. Si ça ne répond pas : le secret ou la fonction (lots 2 et 3)."},
+  {id:"9d",crit:1,min:2,t:"Installer l'app sur ton téléphone",d:"Ouvre l'adresse sur mobile → Partager → <b>Ajouter à l'écran d'accueil</b>. Le logo de l'artisan apparaît comme une vraie appli : effet garanti au RDV.",piege:"Sur iPhone, si tu changes le logo après coup : supprime l'icône et rajoute-la, sinon l'ancienne reste."},
+  {id:"9e",crit:1,min:1,t:"Lancer le diagnostic",d:"Espace dev → diagnostic. Tout doit être au vert (fonctions, règles, secret). C'est ton dernier filet avant le rendez-vous."},
+]},
+
+{ n:"10", titre:"Après la signature", ssTitre:"Remise à zéro et livraison", etapes:[
+  {id:"10a",crit:1,min:1,t:"Effacer les chantiers ET l'équipe de démo",d:"Espace dev → <b>Effacer chantiers + équipe</b>. Cette option-là <b>garde le logo, les couleurs et tes réglages</b> : c'est celle qu'il te faut pour livrer.",piege:"« Tout réinitialiser » efface aussi la personnalisation : tu devrais tout refaire. Ne l'utilise que si tu veux vraiment repartir d'une page blanche."},
+  {id:"10b",crit:1,min:1,t:"Vérifier qu'il ne reste aucune trace",d:"Plus aucun chantier, plus de Karim / Lucas / Thomas dans l'équipe, compteurs devis et factures revenus à leur numéro de départ."},
+  {id:"10c",crit:1,min:1,t:"Te déconnecter avant de confier l'app",d:"Sinon le patron tombe sur ta session dev. Déconnexion, puis fermeture."},
+  {id:"10d",crit:1,min:3,t:"Le patron crée son compte devant toi",d:"Le <b>premier compte créé devient patron</b> automatiquement. Fais-le devant lui, avec son e-mail à lui.",piege:"Si quelqu'un d'autre s'inscrit avant, c'est lui le patron. Fais-le créer son compte en premier, tout de suite."},
+  {id:"10e",min:3,t:"Créer les codes d'invitation de l'équipe",d:"Le patron génère un code par salarié, avec son rôle. Ils rejoignent avec ce code."},
+  {id:"10f",crit:1,min:15,t:"Former le patron (30 min) et envoyer le lien",d:"Le parcours qui compte : créer un chantier → publier le devis → donner le code au client → le client signe. Une fois qu'il l'a fait une fois seul, c'est gagné."},
+  {id:"10g",min:2,t:"Remplir la fiche client dans l'espace dev",d:"Prix de l'abonnement, date de début, échéance. Ça alimente ton suivi de marge (prix − coût IA − infra)."},
+]},
+
+{ n:"11", titre:"Le service après-vente", ssTitre:"À faire dans la semaine qui suit", etapes:[
+  {id:"11a",crit:1,min:2,t:"Mettre le registre à jour",d:"Vérifie que la fiche à gauche est complète : nom, projet Firebase, dépôt, adresse, version installée. C'est ce registre qui te sauvera lors des mises à jour."},
+  {id:"11b",opt:1,min:10,t:"Activer App Check (reCAPTCHA v3)",d:"Couche anti-abus supplémentaire. Déploie <b>d'abord en surveillance</b>, regarde pendant quelques jours, puis force."},
+  {id:"11c",min:3,t:"Faire une première sauvegarde de la base",d:"Espace dev → Exporter les données. Puis prends l'habitude : une sauvegarde par mois minimum. On ne perd jamais les données d'un artisan."},
+  {id:"11d",min:2,t:"Vérifier la consommation IA après une semaine",d:"Espace dev → conso IA. C'est <b>ton</b> coût, pas le sien : il ne doit jamais le voir. S'il dérape, tu ajustes les limites."},
+  {id:"11e",min:1,t:"Confirmer que l'alerte de budget est bien active",d:"Google Cloud → Facturation → Budgets. Tu dois recevoir un e-mail si ça dépasse."},
+]},
+];
+
+/* ===================================================================
+   2) LA MÉCANIQUE
+   =================================================================== */
+const CLE = "bs_chaine_montage_v1";
+const CHAMPS = ["nom","slug","fb","gh","url","dom","ver","notes"];
+let MEM = null;            // secours si le navigateur bloque le stockage
+let DATA = { dossiers:[], actif:null, posteOk:false };
+let OUVERT = {};           // lots dépliés
+
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* --- stockage : localStorage si possible, mémoire sinon --- */
+function lire(){
+  try{
+    const v = localStorage.getItem(CLE);
+    if(v) return JSON.parse(v);
+  }catch(e){ /* mode restreint (aperçu, navigation privée bloquée) */ }
+  return MEM;
+}
+function ecrire(){
+  MEM = DATA;
+  try{ localStorage.setItem(CLE, JSON.stringify(DATA)); }
+  catch(e){ /* on garde au moins la mémoire de la session */ }
+}
+
+function nouveauDossier(base){
+  return Object.assign({
+    id:"d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    nom:"", slug:"", fb:"", gh:"", url:"", dom:"", ver:"", notes:"",
+    etat:"demo", cases:{}, cree:new Date().toISOString().slice(0,10)
+  }, base||{});
+}
+function actif(){
+  return DATA.dossiers.find(d=>d.id===DATA.actif) || null;
+}
+
+/* --- remplacement des jetons {FB} {SLUG} {GH} dans les textes --- */
+function jetons(txt){
+  const d = actif() || {};
+  const slug = (d.slug||"").trim() || "client";
+  const fb   = (d.fb||"").trim()   || ("batisuivi-"+slug);
+  const gh   = (d.gh||"").trim()   || "ton-compte";
+  return String(txt)
+    .replace(/\{SLUG\}/g, slug)
+    .replace(/\{FB\}/g, fb)
+    .replace(/\{GH\}/g, gh);
+}
+
+/* --- comptages --- */
+function toutesEtapes(){ return LOTS.flatMap(l=>l.etapes); }
+function estCoche(id){ const d=actif(); return !!(d && d.cases[id]); }
+function critRestantes(){
+  return toutesEtapes().filter(e=>e.crit && !estCoche(e.id));
+}
+function minutesRestantes(){
+  return toutesEtapes().filter(e=>!e.opt && !estCoche(e.id)).reduce((s,e)=>s+(e.min||0),0);
+}
+function dureeLot(l){ return l.etapes.reduce((s,e)=>s+(e.min||0),0); }
+function faitesLot(l){ return l.etapes.filter(e=>estCoche(e.id)).length; }
+
+/* ===================================================================
+   3) L'AFFICHAGE
+   =================================================================== */
+function renderJauge(){
+  const d = actif();
+  const tot = toutesEtapes().length;
+  const fait = d ? toutesEtapes().filter(e=>estCoche(e.id)).length : 0;
+  const pct = tot ? Math.round(fait/tot*100) : 0;
+
+  $("#pct").textContent = pct+" %";
+  $("#compte").textContent = fait+" / "+tot+" étapes";
+  const m = minutesRestantes();
+  $("#reste").textContent = d ? (m>=60 ? Math.floor(m/60)+" h "+(m%60?(m%60)+" min":"") : m+" min") : "—";
+  $("#dossier-nom").textContent = d ? (d.nom || "Dossier sans nom") : "Aucun dossier";
+
+  $("#bandes").innerHTML = LOTS.map(l=>{
+    const p = l.etapes.length ? Math.round(faitesLot(l)/l.etapes.length*100) : 0;
+    return `<button class="bande ${p===100?'full':''}" data-go="lot-${l.n}" title="Lot ${l.n} — ${esc(l.titre)} (${p} %)" aria-label="Aller au lot ${l.n}"><i style="width:${p}%"></i></button>`;
+  }).join("");
+  $("#bandes-lbl").innerHTML = LOTS.map(l=>`<span>${l.n}</span>`).join("");
+}
+
+function renderLots(){
+  $("#lots").innerHTML = LOTS.map(l=>{
+    const f = faitesLot(l), n = l.etapes.length;
+    const cls = f===n ? "fait" : (f>0 ? "encours" : "");
+    const ouv = OUVERT[l.n] ? "ouvert" : "";
+    return `
+    <div class="lot ${cls} ${ouv}" id="lot-${l.n}">
+      <button class="lot-head" data-lot="${l.n}" aria-expanded="${OUVERT[l.n]?'true':'false'}">
+        <span class="lot-num">${l.n}</span>
+        <span class="lot-t">
+          <h3>${esc(l.titre)}${l.opt?' <span class="tag opt">option</span>':''}</h3>
+          <p>${esc(l.ssTitre)}</p>
+        </span>
+        <span class="lot-meta"><b>${f}/${n}</b>${dureeLot(l)} min</span>
+        <span class="chev">▶</span>
+      </button>
+      <div class="lot-body">
+        ${l.etapes.map(e=>renderEtape(e)).join("")}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderEtape(e){
+  const ok = estCoche(e.id);
+  const tags = (e.crit?'<span class="tag crit">critique</span>':'')
+             + (e.opt?'<span class="tag opt">facultatif</span>':'');
+  return `
+  <div class="etape ${ok?'done':''}">
+    <button class="box" role="checkbox" aria-checked="${ok}" data-case="${e.id}" aria-label="${esc(e.t)}"></button>
+    <div class="etape-c">
+      <div class="etape-t">${esc(e.t)} ${tags}<span class="tag opt">${e.min} min</span></div>
+      <div class="etape-d">${jetons(e.d)}</div>
+      ${e.code?`<div class="code"><button class="cp" data-cp>copier</button><pre>${esc(jetons(e.code))}</pre></div>`:''}
+      ${e.piege?`<div class="piege"><b>Piège</b><br>${jetons(e.piege)}</div>`:''}
+    </div>
+  </div>`;
+}
+
+function renderPanneau(){
+  const d = actif();
+  $("#sel-dossier").innerHTML = DATA.dossiers.length
+    ? DATA.dossiers.map(x=>`<option value="${x.id}" ${x.id===DATA.actif?'selected':''}>${esc(x.nom||"Sans nom")} · ${x.etat}</option>`).join("")
+    : `<option>Aucun dossier</option>`;
+
+  CHAMPS.forEach(k=>{ const el=$(`[data-f="${k}"]`); if(el) el.value = d ? (d[k]||"") : ""; });
+  $$("#etat button").forEach(b=>b.setAttribute("aria-pressed", String(!!d && d.etat===b.dataset.etat)));
+  $("#b-once").setAttribute("aria-pressed", String(!!DATA.posteOk));
+  $("#b-once").textContent = DATA.posteOk ? "Poste prêt ✓ (annuler)" : "Mon poste est déjà prêt";
+}
+
+function renderPV(){
+  const d = actif();
+  const rest = d ? critRestantes() : [];
+  const pret = !!d && rest.length===0;
+  $("#pv").classList.toggle("pret", pret);
+  if(!d){
+    $("#pv-txt").textContent = "Crée un dossier pour démarrer un déploiement.";
+    $("#pv-rest").innerHTML = ""; $("#b-pv").hidden = true; return;
+  }
+  if(pret){
+    $("#pv-txt").innerHTML = "Toutes les étapes critiques sont faites. L'app est en ligne, la base est fermée, la démo est effacée : tu peux confier l'adresse à l'artisan.";
+    $("#pv-rest").innerHTML = d.etat==="livre"
+      ? `<div class="sceau">Livré le ${esc(new Date().toLocaleDateString('fr-FR'))}</div>`
+      : "";
+    $("#b-pv").hidden = d.etat==="livre";
+  } else {
+    $("#pv-txt").innerHTML = `Il reste <b>${rest.length}</b> étape${rest.length>1?'s':''} critique${rest.length>1?'s':''} avant de pouvoir livrer :`;
+    $("#pv-rest").innerHTML = "<ul>"+rest.slice(0,6).map(e=>`<li>${esc(e.t)}</li>`).join("")
+      + (rest.length>6?`<li>… et ${rest.length-6} autre${rest.length-6>1?'s':''}</li>`:"") + "</ul>";
+    $("#b-pv").hidden = true;
+  }
+}
+
+function render(){ renderPanneau(); renderLots(); renderJauge(); renderPV(); }
+
+/* ===================================================================
+   4) LES ACTIONS
+   =================================================================== */
+function toast(m){
+  const t=$("#toast"); t.textContent=m; t.classList.add("on");
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"),2200);
+}
+let _confirmCb=null;
+function demander(titre, texte, cb){
+  $("#mo-t").textContent=titre; $("#mo-p").innerHTML=texte;
+  _confirmCb=cb; $("#modal").classList.add("on");
+}
+$("#mo-non").onclick = ()=>{ $("#modal").classList.remove("on"); _confirmCb=null; };
+$("#mo-oui").onclick = ()=>{ $("#modal").classList.remove("on"); const c=_confirmCb; _confirmCb=null; if(c) c(); };
+$("#modal").addEventListener("click", ev=>{ if(ev.target.id==="modal"){ $("#modal").classList.remove("on"); _confirmCb=null; } });
+
+/* --- cases, lots, copie : un seul écouteur --- */
+document.addEventListener("click", ev=>{
+  const cp = ev.target.closest("[data-cp]");
+  if(cp){
+    const txt = cp.parentElement.querySelector("pre").textContent;
+    navigator.clipboard.writeText(txt).then(()=>{
+      cp.textContent="copié ✓"; cp.classList.add("ok");
+      setTimeout(()=>{ cp.textContent="copier"; cp.classList.remove("ok"); },1400);
+    }).catch(()=>toast("Copie impossible — sélectionne le texte à la main."));
+    return;
+  }
+  const b = ev.target.closest("[data-case]");
+  if(b){
+    const d = actif();
+    if(!d){ toast("Crée d'abord un dossier."); return; }
+    const id = b.dataset.case;
+    d.cases[id] = !d.cases[id];
+    ecrire(); render();
+    // on garde le lot ouvert et on ne saute pas en haut
+    return;
+  }
+  const h = ev.target.closest("[data-lot]");
+  if(h){ const n=h.dataset.lot; OUVERT[n]=!OUVERT[n]; renderLots(); return; }
+  const g = ev.target.closest("[data-go]");
+  if(g){
+    const n = g.dataset.go.replace("lot-","");
+    OUVERT[n]=true; renderLots();
+    document.getElementById("lot-"+n).scrollIntoView({block:"start"});
+    return;
+  }
+});
+
+/* --- fiche : saisie --- */
+CHAMPS.forEach(k=>{
+  const el=$(`[data-f="${k}"]`);
+  el.addEventListener("input", ()=>{
+    const d=actif(); if(!d){ el.value=""; return; }
+    d[k]=el.value;
+    if(k==="slug") d[k]=el.value.toLowerCase().replace(/[^a-z0-9-]/g,"");
+    ecrire();
+    if(k==="nom"||k==="slug"||k==="fb"||k==="gh"){ renderPanneau(); renderLots(); renderJauge(); }
+  });
+});
+$$("#etat button").forEach(b=>{
+  b.onclick=()=>{ const d=actif(); if(!d) return; d.etat=b.dataset.etat; ecrire(); renderPanneau(); renderPV(); };
+});
+$("#sel-dossier").onchange = e=>{ DATA.actif=e.target.value; ecrire(); render(); };
+
+/* --- boutons dossier --- */
+$("#b-new").onclick = ()=>{
+  const d = nouveauDossier(); DATA.dossiers.push(d); DATA.actif=d.id;
+  if(DATA.posteOk) LOTS[0].etapes.forEach(e=>d.cases[e.id]=true);
+  ecrire(); render(); $("#f-nom").focus();
+  toast("Nouveau dossier créé.");
+};
+$("#b-vide").onclick = $("#b-new").onclick;
+
+$("#b-dup").onclick = ()=>{
+  const d=actif(); if(!d){ toast("Aucun dossier à dupliquer."); return; }
+  const c = nouveauDossier({ nom:(d.nom||"Sans nom")+" (copie)", gh:d.gh, ver:d.ver, etat:"demo" });
+  if(DATA.posteOk) LOTS[0].etapes.forEach(e=>c.cases[e.id]=true);
+  DATA.dossiers.push(c); DATA.actif=c.id; ecrire(); render();
+  toast("Dossier dupliqué — cases remises à blanc.");
+};
+
+$("#b-reset").onclick = ()=>{
+  const d=actif(); if(!d){ toast("Aucun dossier."); return; }
+  demander("Décocher tout ce dossier ?",
+    "Toutes les cases repassent à blanc. La fiche (nom, adresses, notes) est conservée. Utile pour relancer une démo propre.",
+    ()=>{
+      d.cases={}; d.etat="demo";
+      if(DATA.posteOk) LOTS[0].etapes.forEach(e=>d.cases[e.id]=true);
+      ecrire(); render(); toast("Dossier remis à zéro.");
+    });
+};
+
+$("#b-del").onclick = ()=>{
+  const d=actif(); if(!d){ toast("Aucun dossier."); return; }
+  demander("Supprimer ce dossier ?",
+    `« ${esc(d.nom||"Sans nom")} » disparaît de cette console. <b>Ça n'efface rien sur Firebase ni sur GitHub</b> — juste ta fiche de suivi.`,
+    ()=>{
+      DATA.dossiers = DATA.dossiers.filter(x=>x.id!==d.id);
+      DATA.actif = DATA.dossiers.length ? DATA.dossiers[0].id : null;
+      ecrire(); render(); toast("Dossier supprimé.");
+    });
+};
+
+$("#b-once").onclick = ()=>{
+  DATA.posteOk = !DATA.posteOk;
+  const d=actif();
+  if(d) LOTS[0].etapes.forEach(e=>{ d.cases[e.id]=DATA.posteOk; });
+  ecrire(); render();
+  toast(DATA.posteOk ? "Lot 0 coché : ton poste est prêt." : "Lot 0 décoché.");
+};
+
+$("#b-pv").onclick = ()=>{
+  const d=actif(); if(!d) return;
+  d.etat="livre"; ecrire(); render(); toast("Dossier marqué « Livré » ✅");
+};
+
+$("#b-print").onclick = ()=>window.print();
+
+/* --- sauvegarde / restauration --- */
+$("#b-export").onclick = ()=>{
+  const blob = new Blob([JSON.stringify(DATA,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "batisuivi-deploiements-"+new Date().toISOString().slice(0,10)+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+  toast("Sauvegarde téléchargée.");
+};
+$("#b-import").onclick = ()=>$("#f-file").click();
+$("#f-file").onchange = ev=>{
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const o = JSON.parse(r.result);
+      if(!o || !Array.isArray(o.dossiers)) throw new Error("format");
+      demander("Restaurer cette sauvegarde ?",
+        `Elle contient <b>${o.dossiers.length}</b> dossier(s). Ça remplace ce qu'il y a dans ce navigateur.`,
+        ()=>{
+          DATA = { dossiers:o.dossiers, actif:o.actif||(o.dossiers[0]&&o.dossiers[0].id)||null, posteOk:!!o.posteOk };
+          ecrire(); render(); toast("Sauvegarde restaurée.");
+        });
+    }catch(e){ toast("Fichier illisible — ce n'est pas une sauvegarde de cette console."); }
+    ev.target.value="";
+  };
+  r.readAsText(f);
+};
+
+/* ===================================================================
+   5) DÉMARRAGE
+   =================================================================== */
+(function boot(){
+  const s = lire();
+  if(s && Array.isArray(s.dossiers)) DATA = { dossiers:s.dossiers, actif:s.actif, posteOk:!!s.posteOk };
+  if(!DATA.dossiers.length){
+    const d = nouveauDossier({ nom:"Premier déploiement", ver:"v195 · 13/07" });
+    DATA.dossiers.push(d); DATA.actif=d.id;
+  }
+  if(!actif()) DATA.actif = DATA.dossiers[0].id;
+  // on ouvre le premier lot non terminé
+  const l = LOTS.find(x=>faitesLot(x) < x.etapes.length) || LOTS[0];
+  OUVERT[l.n]=true;
+  render();
+})();
+</script>
+</body>
+</html>
